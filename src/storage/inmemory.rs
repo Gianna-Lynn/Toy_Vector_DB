@@ -1,32 +1,3 @@
-use serde::{Serialize, Deserialize};
-use serde_json;
-
-/********************************************** Types **********************************************/
-// 一条向量的ID
-pub type Id = u64;
-
-// 向量本体（以后可以换成别的结构）
-pub type Vector = Vec<f32>;
-
-// 一条记录：id + 向量
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]   
-//Rust中提供的派生宏语法，让编译器自动为这个结构体生成Clone和Debug trait的默认实现，不需要手动编码
-pub struct Record{
-    pub id: Id,
-    pub vector: Vector,
-    // 最简单的Record结构体,包含一个id(u64类型)和一个vector(Vec<f32>类型). 
-    //未来可以根据需要添加更多字段,比如metadata等.
-}
-
-// 搜索结果：搜索的是哪一个id，匹配程度有多好
-#[derive(Clone, Debug)]
-pub struct SearchResult {
-    pub id: Id,
-    pub score: f32,    //比如余弦相似度
-    // SearchResult结构体包含一个id和一个score，
-    // 分别表示搜索结果对应的记录id和相似度得分。
-}
-
 /********************************************** Storage **********************************************/
 
 //统一的向量存储接口
@@ -135,7 +106,7 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
         }
 
     }
-
+    
     /********************************************** Search **********************************************/
 
     fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult> {
@@ -209,30 +180,5 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
         //最后，sort_by会根据这些比较结果对results中的元素进行排序。
         results.truncate(k);
         results
-    }
-}
-
-/********************************************** Distance **********************************************/
-
-fn cosine_similarity(a: &Vector, b: &Vector) -> f32{
-    // 计算余弦相似度
-    assert_eq!(a.len(), b.len(), "dimension mismatch");  //猜测：这里的字符串参数应该是assert断言不生效时候，屏幕上会输出的话。
-
-    let mut dot = 0.0f32;       //dot: 矢量a和矢量b的点积
-    let mut norm_a = 0.0f32;
-    let mut norm_b = 0.0f32;
-
-    for (x, y) in a.iter().zip(b.iter()) {
-        dot += x * y;
-        norm_a += x * x;  // 循环完毕后，norm_a中记录了矢量a中各分量值的平方和。
-        norm_b += y * y;
-    }
-
-    let denom = norm_a.sqrt() * norm_b.sqrt();  //数值上看，denom的值等于a的二范数乘以b的二范数
-    if denom == 0.0{
-        0.0
-    }
-    else{
-        dot / denom
     }
 }
