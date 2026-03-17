@@ -93,6 +93,12 @@ impl InMemoryVectorStore{       //第一个impl: 直接为结构体添加方法.
 
         Ok(Self{data})
     }
+
+    //函数功能:只读访问器，返回一个Record切片（slice），供外部使用。
+    pub fn records(&self) -> &[Record]{
+        &self.data
+    }
+
 }
 
 //猜测：泛型实际上说的是模板和具体实现这两件事。有点像C++的template。
@@ -139,6 +145,10 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
     /********************************************** Search **********************************************/
 
     fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult> {
+
+        crate::search::flat::search_flat(self, query, k)
+
+        /*
         // &self表示以只读引用的方法借用当前的实例,可以通过self访问结构体定义的唯一字段:self.data,只读.
         //如果要修改,需要用&mut self
         //unimplemented!("search is not implemented yet");
@@ -209,6 +219,7 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
         //最后，sort_by会根据这些比较结果对results中的元素进行排序。
         results.truncate(k);
         results
+        */
     }
 }
 

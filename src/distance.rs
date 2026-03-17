@@ -1,6 +1,6 @@
 /********************************************** Distance **********************************************/
 
-fn cosine_similarity(a: &Vector, b: &Vector) -> f32{
+pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32{
     // 计算余弦相似度
     assert_eq!(a.len(), b.len(), "dimension mismatch");  //猜测：这里的字符串参数应该是assert断言不生效时候，屏幕上会输出的话。
 
