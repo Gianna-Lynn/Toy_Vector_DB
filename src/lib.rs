@@ -2,3 +2,4 @@
 pub mod store;
 pub mod distance;
 pub mod search;
+pub mod types;

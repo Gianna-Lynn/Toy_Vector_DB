@@ -4,9 +4,8 @@
 //     assert_eq!(2 + 2, 4);
 // }
 
-use std::result;
-
-use Toy_Vector_DB::store::{InMemoryVectorStore, VectorStore};
+use toy_vector_db::store::{InMemoryVectorStore, VectorStore};
+use toy_vector_db::search::flat::search_flat;
 
 #[test]
 fn simple_insert_and_search() {
@@ -17,7 +16,7 @@ fn simple_insert_and_search() {
     store.insert(3, vec![1.0, 1.0]);
 
     let query = vec![1.0, 0.0];
-    let results = store.search(&query, 2);
+    let results = search_flat(&store, &query, 2);
 
     assert_eq!(results.len(), 2);
     let ids: Vec<u64> = results.iter().map(|r| r.id).collect(); //r是闭包参数,类型是迭代器产生的类型. 
@@ -48,7 +47,7 @@ fn test_save_and_load(){
         .expect("加载失败");
 
     //验证数据是否正确
-    let results = loaded_store.search(&vec![1.0 , 0.0], 10);
+    let results = search_flat(&loaded_store, &vec![1.0 , 0.0], 10);
     assert_eq!(results.len(), 3, "应该有3条记录");
 
     println!("Save and Load test passed!");

@@ -1,31 +1,7 @@
-use serde::{Serialize, Deserialize};
+use crate::types::{Id, Vector, Record};
+// use crate::types::{SearchResult};
+// use serde::{Serialize, Deserialize};
 use serde_json;
-
-/********************************************** Types **********************************************/
-// 一条向量的ID
-pub type Id = u64;
-
-// 向量本体（以后可以换成别的结构）
-pub type Vector = Vec<f32>;
-
-// 一条记录：id + 向量
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]   
-//Rust中提供的派生宏语法，让编译器自动为这个结构体生成Clone和Debug trait的默认实现，不需要手动编码
-pub struct Record{
-    pub id: Id,
-    pub vector: Vector,
-    // 最简单的Record结构体,包含一个id(u64类型)和一个vector(Vec<f32>类型). 
-    //未来可以根据需要添加更多字段,比如metadata等.
-}
-
-// 搜索结果：搜索的是哪一个id，匹配程度有多好
-#[derive(Clone, Debug)]
-pub struct SearchResult {
-    pub id: Id,
-    pub score: f32,    //比如余弦相似度
-    // SearchResult结构体包含一个id和一个score，
-    // 分别表示搜索结果对应的记录id和相似度得分。
-}
 
 /********************************************** Storage **********************************************/
 
@@ -34,12 +10,12 @@ pub trait VectorStore{
     // 插入或者更新一条向量
     fn insert(&mut self, id: Id, vector: Vector);
     
-    // 基于相似度搜索前K个
-    fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult>;  //问题：目前对于trait和泛型这一块的知识还不清晰。
+    // // 基于相似度搜索前K个
+    // fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult>;  //问题：目前对于trait和泛型这一块的知识还不清晰。
     
-    //回答：trait直译为特征，规定了所有VectorStore都必须有的特征, 也就是两个方法签名，insert和search。
-    //     在trait当中只写方法签名，不写具体实现, 以分号结束。
-    //     VectorStore是一个trait, 是一份合同, 或者说接口说明书.
+    // //回答：trait直译为特征，规定了所有VectorStore都必须有的特征, 也就是两个方法签名，insert和search。
+    // //     在trait当中只写方法签名，不写具体实现, 以分号结束。
+    // //     VectorStore是一个trait, 是一份合同, 或者说接口说明书.
 }
 
 pub struct InMemoryVectorStore{ //定义了一个struct结构体.
@@ -142,6 +118,13 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
 
     }
 
+    // fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult> {
+    //     crate::search::flat::search_flat(self, query, k)
+    // }
+
+}
+
+/*
     /********************************************** Search **********************************************/
 
     fn search(&self, query: &Vector, k: usize) -> Vec<SearchResult> {
@@ -223,6 +206,9 @@ impl VectorStore for InMemoryVectorStore{   //第二个impl: 为结构体实现t
     }
 }
 
+*/
+
+/*
 /********************************************** Distance **********************************************/
 
 fn cosine_similarity(a: &Vector, b: &Vector) -> f32{
@@ -246,4 +232,6 @@ fn cosine_similarity(a: &Vector, b: &Vector) -> f32{
     else{
         dot / denom
     }
+    
 }
+*/

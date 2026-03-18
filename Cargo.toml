@@ -1,7 +1,11 @@
 [package]
-name = "Toy_Vector_DB"
+name = "toy_vector_db"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[lib]
+name = "toy_vector_db"
+path = "src/lib.rs"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
