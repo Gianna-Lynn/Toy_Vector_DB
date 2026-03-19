@@ -12,7 +12,9 @@ pub fn search_flat(
     // &self表示以只读引用的方法借用当前的实例,可以通过self访问结构体定义的唯一字段:self.data,只读.
     //如果要修改,需要用&mut self
     //unimplemented!("search is not implemented yet");
-    let mut results: Vec<SearchResult> = store.records()
+    
+
+    let mut results: Vec<SearchResult> = store.data
         .iter()
         .map(|rec|{
             let score = cosine_similarity(query, &rec.vector);

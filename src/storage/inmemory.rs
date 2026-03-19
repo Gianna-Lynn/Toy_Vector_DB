@@ -1,8 +1,13 @@
+use crate::types::{Id, Vector, Record};
+use super::VectorStore;  //在这里,Super表示上一级模块,也就是storage模块. VectorStore是storage模块中定义的trait. 这里的use是为了在当前文件中使用这个trait.
+use serde_json; //引入serde_json库,用于序列化和反序列化JSON数据. 这个库需要在Cargo.toml中添加依赖: serde_json = "1.0"。
+
+
 /********************************************** Storage **********************************************/
 
 
 pub struct InMemoryVectorStore{ //定义了一个struct结构体.
-    data: Vec<Record>,
+    pub data: Vec<Record>,
     // fn save(&self, path: &str) -> Result<(), Error>,  // 错误:在struct定义中,不能直接写函数签名.struct只能包含字段(数据),不能包含方法.
 }
 

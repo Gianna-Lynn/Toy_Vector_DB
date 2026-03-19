@@ -4,7 +4,8 @@
 //     assert_eq!(2 + 2, 4);
 // }
 
-use toy_vector_db::store::{InMemoryVectorStore, VectorStore};
+use toy_vector_db::storage::inmemory::{InMemoryVectorStore};
+use toy_vector_db::storage::{VectorStore};
 use toy_vector_db::search::flat::search_flat;
 
 #[test]
