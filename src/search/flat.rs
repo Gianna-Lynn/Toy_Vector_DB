@@ -14,7 +14,7 @@ pub fn search_flat(
     //unimplemented!("search is not implemented yet");
     
 
-    let mut results: Vec<SearchResult> = store.data
+    let mut results: Vec<SearchResult> = store.records()
         .iter()
         .map(|rec|{
             let score = cosine_similarity(query, &rec.vector);
