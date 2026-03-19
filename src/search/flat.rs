@@ -1,7 +1,7 @@
 /********************************************** Search **********************************************/
 
 use crate::distance::cosine_similarity;
-use crate::store::{InMemoryVectorStore};
+use crate::storage::inmemory::{InMemoryVectorStore};
 use crate::types::{SearchResult, Vector};
 
 pub fn search_flat( 
