@@ -7,7 +7,7 @@ use crate::types::{SearchResult, Vector};
 pub fn search_flat( 
     store: &InMemoryVectorStore, 
     query: &Vector,
-    k: usize
+    k: usize  // 要返回的结果的数量.
 ) -> Vec<SearchResult> {
     // &self表示以只读引用的方法借用当前的实例,可以通过self访问结构体定义的唯一字段:self.data,只读.
     //如果要修改,需要用&mut self
