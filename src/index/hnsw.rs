@@ -8,7 +8,8 @@ pub struct HnswIndex{
 
 pub struct HnswNode{
    id: Id,
-   data: Vec<Record>,
+   //data: Vec<Record>, //不能这么写.一个HNSW节点只对应一条向量记录,也就是一个Record, 不要再建立一个Vec<Record>
+   data: Vector,
    //level: u64,
    level: usize,
    //neighbors: Vec<Id> // 不能这么写,因为HNSW是分层图.
