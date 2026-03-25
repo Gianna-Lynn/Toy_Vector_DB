@@ -1,18 +1,21 @@
+
+
 use crate::types::{Id, Vector};
+#[derive(Debug)]
 pub struct HnswIndex{
     nodes: Vec<HnswNode>, //保存当前图中所有节点
     //entry_point: HnswNode, //因为一开始有可能是空的,没有接入点,是None.
     entry_point:Option<Id>,    //保存入口节点Id
     //max_level: u64 
-    max_level: usize           //保存图中最高层数
+    index_max_level: usize           //保存图中最高层数
 }
-
+#[derive(Debug)]
 pub struct HnswNode{
    id: Id,
    //data: Vec<Record>, //不能这么写.一个HNSW节点只对应一条向量记录,也就是一个Record, 不要再建立一个Vec<Record>
    data: Vector,
    //level: u64,
-   level: usize,        // level表示该节点可到达的最高层编号.例如,如果level=3, 则该节点在0,1,2,3层都有邻居.如果level=0, 则该节点只有在第0层有邻居.
+   node_max_level: usize,        // level表示该节点可到达的最高层编号.例如,如果level=3, 则该节点在0,1,2,3层都有邻居.如果level=0, 则该节点只有在第0层有邻居.
    //neighbors: Vec<Id> // 不能这么写,因为HNSW是分层图.
    neighbors: Vec<Vec<Id>> //neighbors[i]：第 i 层的邻居
 }
@@ -25,7 +28,7 @@ impl HnswIndex{
         Self{
             nodes: Vec::new(),
             entry_point:None,
-            max_level: 0,
+            index_max_level: 0,
         }
     }
     pub fn len(&self) ->  usize{
@@ -37,9 +40,9 @@ impl HnswIndex{
         return self.nodes.is_empty();
     }
 
-    pub fn insert(&mut self, mut node:HnswNode){
+    pub fn insert(&mut self, mut node_to_insert:HnswNode){
         if self.is_empty(){
-            self.entry_point = Some(node.id);   // 不清楚为什么要加这个Some()
+            self.entry_point = Some(node_to_insert.id);   // 不清楚为什么要加这个Some()
                                                 //entry_point的类型是Option<Id>,表示没有值None, 要么有值Some(id)
             // //node.neighbors = Empty;             //没有Empty这个写法,一开始, node也不是mut node,默认不能修改它的字段.
             // //node.neighbors = Vec::new();          //空的邻居表应该是空的vector
@@ -49,13 +52,31 @@ impl HnswIndex{
             // // vec![value; count] 是 Rust 中创建一个包含 count 个 value 的 Vec
             // //这一部分删除了,因为在HnswNode::new()中已经创建好了neighbors了. 这里不需要再创建一次了.
             
-            self.max_level =  node.level;
+            self.index_max_level =  node_to_insert.node_max_level;
         }
         // self.nodes.append(node);    //Vec::append需要另一个Vec. 这不是"把单个元素放进Vector"的方法.
-        self.nodes.push(node);
+        else{
+            let lvls = std::cmp::min(self.index_max_level, node_to_insert.node_max_level);
+            match self.entry_point{
+                Some(entry_point_id) => {
+                    let entry_point_op = self.get_mut_node_by_id(entry_point_id);
+                    match entry_point_op{
+                        Some(entry_point_node)=>{
+                            for i in 0..=lvls{
+                                entry_point_node.add_neighbor(node_to_insert.id, i);
+                                node_to_insert.add_neighbor(entry_point_node.id,i);
+                            }
+                        }
+                        None => {}
+                    }
+                }
+                None => {}
+            }
+        }
+        self.nodes.push(node_to_insert);
     }
 
-    pub fn find_id_in_neighbors(target_id:Id, target_vector: &Vec<Id>) -> Option<usize>{
+    pub fn find_index_of_id_in_neighbors(target_id:Id, target_vector: &Vec<Id>) -> Option<usize>{
         //根据某个节点的id寻找节点在一个邻居数组中的下标
 
         /* 
@@ -82,8 +103,8 @@ impl HnswIndex{
 
     //而“按 id 找节点”是在做：
     //在 self.nodes: Vec<HnswNode> 里，找到 node.id == target_id 的那个节点
-    pub fn find_id_in_nodes(&self, target_id:Id) -> Option<&HnswNode>{
-        for (_idx,x) in self.nodes.iter().enumerate(){
+    pub fn get_node_by_id(&self, target_id:Id) -> Option<&HnswNode>{
+        for x in self.nodes.iter(){
             if x.id == target_id{
                 return Some(x);
             }
@@ -92,6 +113,25 @@ impl HnswIndex{
         None
     }
 
+    //“按 id 找到节点然后修改它”。
+    pub fn get_mut_node_by_id(&mut self, target_id:Id) -> Option<&mut HnswNode>{
+        //因为要修改节点,所以需要&mut self,返回值也是&mut HnswNode
+        //想要返回一个可变引用,就必须使用iter_mut()方法来遍历self.nodes,而不是iter()方法. 
+        //iter_mut()会返回一个可变引用的迭代器,这样我们就可以修改迭代器中的元素了.
+        //find()方法会返回一个Option<&mut HnswNode>,如果找到了满足条件的元素,
+        //就返回Some(&mut HnswNode),否则返回None.
+        self.nodes.iter_mut().find(|x| x.id==target_id)
+
+    }
+
+    pub fn add_neighbor_to_node(&mut self, node_id:Id, neighbor_id:Id){
+        let mut node = self.get_mut_node_by_id(node_id);
+    }
+
+    pub fn get_nodes(&self) -> &Vec<HnswNode>{
+        &self.nodes
+    }
+    
 }
 
 
@@ -110,9 +150,21 @@ impl HnswNode{
         Self{
             id,
             data, 
-            level,
+            node_max_level: level,
             neighbors,
         }
+    }
+
+    //给某个节点的某一层添加一个邻居 id."我自己这一层加一个邻居"
+    pub fn add_neighbor(&mut self, neighbor_id: Id, neighbor_lvl: usize){
+        //self.neighbors[neighbor_lvl].append(neighbor_id); //append是拿来“把一个 Vec 里的所有元素接到另一个 Vec 后面”的。它要的不是一个单独的 Id，而是一个 Vec<Id>。
+        if neighbor_lvl < self.neighbors.len(){
+            self.neighbors[neighbor_lvl].push(neighbor_id);
+        }
+    }
+
+    pub fn get_neighbors(&self) -> &Vec<Vec<u64>>{
+        &self.neighbors
     }
 
 }
