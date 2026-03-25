@@ -1,11 +1,12 @@
-
+use core::f32;
 
 use crate::types::{Id, Vector};
+use crate::distance;
 #[derive(Debug)]
 pub struct HnswIndex{
     nodes: Vec<HnswNode>, //保存当前图中所有节点
     //entry_point: HnswNode, //因为一开始有可能是空的,没有接入点,是None.
-    entry_point:Option<Id>,    //保存入口节点Id
+    entry_node_id:Option<Id>,    //保存入口节点Id
     //max_level: u64 
     index_max_level: usize           //保存图中最高层数
 }
@@ -27,7 +28,7 @@ impl HnswIndex{
     pub fn new() -> Self{
         Self{
             nodes: Vec::new(),
-            entry_point:None,
+            entry_node_id:None,
             index_max_level: 0,
         }
     }
@@ -42,7 +43,7 @@ impl HnswIndex{
 
     pub fn insert(&mut self, mut node_to_insert:HnswNode){
         if self.is_empty(){
-            self.entry_point = Some(node_to_insert.id);   // 不清楚为什么要加这个Some()
+            self.entry_node_id = Some(node_to_insert.id);   // 不清楚为什么要加这个Some()
                                                 //entry_point的类型是Option<Id>,表示没有值None, 要么有值Some(id)
             // //node.neighbors = Empty;             //没有Empty这个写法,一开始, node也不是mut node,默认不能修改它的字段.
             // //node.neighbors = Vec::new();          //空的邻居表应该是空的vector
@@ -56,22 +57,35 @@ impl HnswIndex{
         }
         // self.nodes.append(node);    //Vec::append需要另一个Vec. 这不是"把单个元素放进Vector"的方法.
         else{
-            let lvls = std::cmp::min(self.index_max_level, node_to_insert.node_max_level);
-            match self.entry_point{
-                Some(entry_point_id) => {
-                    let entry_point_op = self.get_mut_node_by_id(entry_point_id);
-                    match entry_point_op{
-                        Some(entry_point_node)=>{
-                            for i in 0..=lvls{
-                                entry_point_node.add_neighbor(node_to_insert.id, i);
-                                node_to_insert.add_neighbor(entry_point_node.id,i);
-                            }
-                        }
-                        None => {}
-                    }
+
+            
+            //else分支: 如果图非空
+            let mut max_similarity:f32 = f32::NEG_INFINITY; 
+            let mut max_idx:usize = 0;
+            for (idx, old_node) in self.nodes.iter().enumerate(){
+                let temp_similatary = distance::cosine_similarity(old_node.get_data(), node_to_insert.get_data());
+                if temp_similatary > max_similarity{
+                    max_similarity = temp_similatary;
+                    max_idx = idx;
                 }
-                None => {}
+                //max_similarity = temp_similatary.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
+            }//endfor: 得到了和node_to_insert最近的一个已有节点在self.nodes中的下标max_idx
+            // self.nodes[max_idx].add_neighbor(node_to_insert.id,node_to_insert.node_max_level);
+            // node_to_insert.add_neighbor( self.nodes[max_idx].id,  self.get_nodes()[max_idx].node_max_level);
+            
+            //如果新来的节点层次更高, 要修改整个图的最高层
+            if self.index_max_level <  node_to_insert.node_max_level{
+                self.index_max_level =  node_to_insert.node_max_level;
+                self.entry_node_id = Some(node_to_insert.id);
             }
+
+            let lvls = std::cmp::min(self.nodes[max_idx].node_max_level, node_to_insert.node_max_level);
+            
+            for i in 0..=lvls{
+                self.nodes[max_idx].add_neighbor(node_to_insert.id, i);
+                node_to_insert.add_neighbor(self.nodes[max_idx].id,i);
+            }
+        
         }
         self.nodes.push(node_to_insert);
     }
@@ -125,7 +139,7 @@ impl HnswIndex{
     }
 
     pub fn add_neighbor_to_node(&mut self, node_id:Id, neighbor_id:Id){
-        let mut node = self.get_mut_node_by_id(node_id);
+        let node = self.get_mut_node_by_id(node_id);
     }
 
     pub fn get_nodes(&self) -> &Vec<HnswNode>{
@@ -165,6 +179,10 @@ impl HnswNode{
 
     pub fn get_neighbors(&self) -> &Vec<Vec<u64>>{
         &self.neighbors
+    }
+
+    pub fn get_data(&self) -> &Vector{
+        &self.data
     }
 
 }
