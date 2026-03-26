@@ -138,14 +138,68 @@ impl HnswIndex{
 
     }
 
-    pub fn add_neighbor_to_node(&mut self, node_id:Id, neighbor_id:Id){
-        let node = self.get_mut_node_by_id(node_id);
-    }
+    // pub fn add_neighbor_to_node(&mut self, node_id:Id, neighbor_id:Id){
+        
+    // }
 
     pub fn get_nodes(&self) -> &Vec<HnswNode>{
         &self.nodes
     }
     
+    pub fn search_v0(&self, query: &Vector) -> Option<Id>{
+        if self.is_empty(){
+            return None;
+        }
+        //如果图非空
+        //let mut search_id_opt = self.entry_node_id;
+
+        //改进逻辑,省去loop内部的match search_id_opt的分支.直接利用current_id.
+        let mut current_id = if let Some(id) = self.entry_node_id{
+            id
+        }else{
+            return None;
+        };
+        loop{
+            // match search_id_opt{
+            //     Some(search_id) =>{
+                if let Some(node_to_search) = self.get_node_by_id(current_id){
+                    let mut max_similarity:f32 = distance::cosine_similarity(node_to_search.get_data(), query);
+                    let mut max_idx:usize = 0;
+                    let mut flag = 0;
+                    for (idx, neighbor_id) in node_to_search.neighbors[0].iter().enumerate(){
+                        if let Some(neighbor_node) = self.get_node_by_id(*neighbor_id){
+                            let temp_similatary = distance::cosine_similarity(neighbor_node.get_data(), query);
+                            if temp_similatary > max_similarity{
+                                max_similarity = temp_similatary;
+                                max_idx = idx;
+                                flag = 1;
+                            }
+                        }
+                        //max_similarity = temp_similatary.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
+                    }//endfor: 得到了和query向量最近的一个已有节点在neighbors[0]中的下标max_idx
+                    if flag == 0 {
+                        //利用node_to_search
+                        //没有任何邻居比当前节点更好.
+                        return Some(node_to_search.id);
+                    }
+                    else{
+                        //利用neighbors[0][max_idx], 这个邻居比当前节点更好.
+                        let next_id = node_to_search.neighbors[0][max_idx]; //等号右边是一个id.
+                        // let next_node_opt = self.get_node_by_id(next_id);
+                        current_id = next_id;
+                    }
+                }
+                else {
+                    return None;
+                }
+        }
+        return None;
+                // None =>{
+                //     return None;
+                // }
+            
+    }
+        //return None;
 }
 
 
@@ -183,6 +237,10 @@ impl HnswNode{
 
     pub fn get_data(&self) -> &Vector{
         &self.data
+    }
+
+    pub fn get_id(&self) -> &Id{
+        &self.id
     }
 
 }
