@@ -1,4 +1,7 @@
 use core::f32;
+use std::collections::HashSet;
+use std::f32::consts::E;
+use std::os::raw::c_void;
 
 use crate::types::{Id, Vector};
 use crate::distance;
@@ -63,12 +66,12 @@ impl HnswIndex{
             let mut max_similarity:f32 = f32::NEG_INFINITY; 
             let mut max_idx:usize = 0;
             for (idx, old_node) in self.nodes.iter().enumerate(){
-                let temp_similatary = distance::cosine_similarity(old_node.get_data(), node_to_insert.get_data());
-                if temp_similatary > max_similarity{
-                    max_similarity = temp_similatary;
+                let temp_similarity = distance::cosine_similarity(old_node.get_data(), node_to_insert.get_data());
+                if temp_similarity > max_similarity{
+                    max_similarity = temp_similarity;
                     max_idx = idx;
                 }
-                //max_similarity = temp_similatary.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
+                //max_similarity = temp_similarity.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
             }//endfor: 得到了和node_to_insert最近的一个已有节点在self.nodes中的下标max_idx
             // self.nodes[max_idx].add_neighbor(node_to_insert.id,node_to_insert.node_max_level);
             // node_to_insert.add_neighbor( self.nodes[max_idx].id,  self.get_nodes()[max_idx].node_max_level);
@@ -168,14 +171,14 @@ impl HnswIndex{
                     let mut flag = 0;
                     for (idx, neighbor_id) in node_to_search.neighbors[0].iter().enumerate(){
                         if let Some(neighbor_node) = self.get_node_by_id(*neighbor_id){
-                            let temp_similatary = distance::cosine_similarity(neighbor_node.get_data(), query);
-                            if temp_similatary > max_similarity{
-                                max_similarity = temp_similatary;
+                            let temp_similarity = distance::cosine_similarity(neighbor_node.get_data(), query);
+                            if temp_similarity > max_similarity{
+                                max_similarity = temp_similarity;
                                 max_idx = idx;
                                 flag = 1;
                             }
                         }
-                        //max_similarity = temp_similatary.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
+                        //max_similarity = temp_similarity.max(max_similarity);   //ご注意ください:这里max的用法用于比较两个f32
                     }//endfor: 得到了和query向量最近的一个已有节点在neighbors[0]中的下标max_idx
                     if flag == 0 {
                         //利用node_to_search
@@ -193,13 +196,69 @@ impl HnswIndex{
                     return None;
                 }
         }
-        return None;
-                // None =>{
-                //     return None;
-                // }
-            
+        return None;        
     }
-        //return None;
+
+    pub fn extract_nearest(set: &HashSet<Id>, query: &Vector)->Id{
+        unimplemented!()
+    }
+    pub fn extract_furthest(set: &HashSet<Id>, query: &Vector)->Id{
+        unimplemented!()
+    }
+
+    pub fn get_neighbors_at_lvl(id: Id, lvl:usize) -> HashSet<Id>{
+        unimplemented!()
+    }
+
+    pub fn search_layer_v0(&self, query:&Vector, entry_id: Id, level:usize, ef: usize) -> Vec<Id>{
+        //已经访问过的节点集合v
+        let mut v_set: HashSet<Id> = HashSet::new();
+        //候选集合C
+        let mut C_set: HashSet<Id> = HashSet::new();
+        //目前找到的最近点集合W
+        let mut W_set: HashSet<Id> = HashSet::new();
+
+        while !C_set.is_empty(){
+            let c_id = HnswIndex::extract_nearest(&C_set, query);
+            let mut f_id = HnswIndex::extract_furthest(&W_set, query);
+            
+            let c_node = HnswIndex::get_node_by_id(&self, c_id).expect("节点不存在");
+            let mut f_node = HnswIndex::get_node_by_id(&self, f_id).expect("节点不存在");
+            
+            if distance::cosine_similarity(&c_node.data, query) >  distance::cosine_similarity(&f_node.data, query){
+                break;
+            }
+
+            let c_neighbors_set_at_lvl =  HnswIndex::get_neighbors_at_lvl(c_id, level);
+
+
+            for e_id in  c_neighbors_set_at_lvl{
+                if !v_set.contains(&e_id){
+                    v_set.insert(e_id);
+                }
+                f_id = HnswIndex::extract_furthest(&W_set, query);
+
+                let e_node = HnswIndex::get_node_by_id(&self, e_id).expect("节点不存在");
+
+                if distance::cosine_similarity(&e_node.data, query) >  distance::cosine_similarity(&f_node.data, query)
+                    || W_set.len() < ef
+                    
+                {
+                    C_set.insert(e_id);
+                    W_set.insert(e_id);
+                    if W_set.len() > ef {
+                        let id_to_remove = HnswIndex::extract_furthest(&W_set, query);
+                        W_set.remove(&id_to_remove);
+                    }
+                }
+
+            }
+
+        }
+
+        return W_set.into_iter().collect()
+    
+    }
 }
 
 
