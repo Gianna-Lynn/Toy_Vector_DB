@@ -194,7 +194,7 @@ impl HnswIndex {
         }
     }
 
-    pub fn extract_nearest(&self, set: &HashSet<Id>, query: &Vector) -> Option<Id> {
+    pub fn get_nearest(&self, set: &HashSet<Id>, query: &Vector) -> Option<Id> {
         //ご注意ください:如果函数签名中返回值仅仅写Id, 那么假如集合HashSet为空,就不会有合法的返回值.
         //需要改成返回Option<Id>
         //unimplemented!();
@@ -274,7 +274,7 @@ impl HnswIndex {
 
         while !c_set.is_empty() {
             //ご注意ください:extract方法是取出, 要完成"拿出来+删掉".需要一个额外的删除语句.remove
-            let c_id = self.extract_nearest(&c_set, query).expect("c_id不存在");
+            let c_id = self.get_nearest(&c_set, query).expect("c_id不存在");
             c_set.remove(&c_id);
             //ご注意ください:get方法是查看, 要完成"拿出来读取", 而不是删掉.
             let mut f_id = self.get_furthest(&w_set, query).expect("f_id不存在");
@@ -306,7 +306,7 @@ impl HnswIndex {
                 let e_node = self.get_node_by_id( e_id).expect("节点不存在");
                 // 逻辑:cosine_similarity的值: 两个向量距离越近, similarity的值越大.不要写反了.
                 if distance::cosine_similarity(&e_node.data, query)
-                    > distance::cosine_similarity(&f_node.data, query)
+                    >= distance::cosine_similarity(&f_node.data, query)
                     || w_set.len() < ef
                 {
                     c_set.insert(e_id);
