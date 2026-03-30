@@ -1,5 +1,7 @@
-use std::{collections::HashSet, u64, vec};
+mod datasets;
 
+use datasets::*;
+use std::{collections::HashSet, u64, vec};
 use toy_vector_db::{
     index::hnsw::{HnswIndex, HnswNode},
     types::Id,
@@ -235,7 +237,7 @@ fn test_search_layer_v0() {
 }
 
 #[test]
-fn test_greedy_search_at_level() {
+fn test_greedy_search_at_level_old() {
     //let nodes_data = generate_nodes_data();
 
     //Test A
@@ -274,7 +276,7 @@ fn test_greedy_search_at_level() {
 }
 
 #[test]
-fn test_search_knn_v1() {
+fn test_search_knn_v1_old() {
     // Test C: empty index
     // 空图上调用 search_knn_v1(...)
     // 结果应为空
@@ -324,3 +326,79 @@ fn test_search_knn_v1() {
     println!("{:#?}", result_vector);
 
 }
+
+
+#[test]
+fn test_greedy_search_at_level() {
+    //let nodes_data = generate_nodes_data();
+
+    //Test A
+    //构造一个简单单层图，使得从某个入口点出发可以沿邻居不断接近查询点。
+    //检查返回值是否为最终停止节点。
+
+    let case = greedy_chain_case();
+    let index = build_index(case.nodes_data);
+    let test_query = case.query;
+    
+    let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    println!("Test A result_id is:");
+    println!("{:#?}", result_id);
+
+    //TestB
+    // 构造一个节点在某层没有任何更优邻居的情形。
+    // 检查函数是否直接返回入口点本身。
+
+    let case = single_node_case();
+    let index = build_index(case.nodes_data);
+    let test_query = vec![8.1, 2.1];
+    let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    println!("Test B result_id is:");
+    println!("{:#?}", result_id);
+}
+
+#[test]
+fn test_search_knn_v1() {
+    // Test C: empty index
+    // 空图上调用 search_knn_v1(...)
+    // 结果应为空
+    let case = empty_case();
+    let index = build_index(case.nodes_data);
+    let test_query = case.query;
+
+    println!("Test C get_entry_node_id is:");
+    println!("{:#?}",index.get_entry_node_id());
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test C result_vector is:");
+    println!("{:#?}", result_vector);
+
+    // Test D: single node
+    // 单节点图
+    // 查询任意向量
+    // 返回结果应只包含该节点
+    let case = single_node_case();
+    let index = build_index(case.nodes_data);
+    let test_query = case.query;
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test D result_vector is:");
+    println!("{:#?}", result_vector);
+
+    // Test E: result size
+    // 构造一个小图
+    // 调用 search_knn_v1(query, k, ef_search)
+    // 检查返回长度不超过 k
+
+    // Test F: ranking
+    // 构造一个小图
+    // 调用查询
+    // 检查返回结果按相似度非增排序
+    let case = unique_ranking_case();
+    let index = build_index(case.nodes_data);
+    let test_query = case.query;
+
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test E/F result_vector is:");
+    println!("{:#?}", result_vector);
+
+}
+
+
