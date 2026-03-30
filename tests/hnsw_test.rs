@@ -363,6 +363,7 @@ fn test_search_knn_v1() {
     test_search_knn_v1_unique_ranking_case();
 }
 
+#[test]
 fn test_search_knn_v1_empty_case() {
     // Test C: empty index
     // 空图上调用 search_knn_v1(...)
@@ -380,6 +381,7 @@ fn test_search_knn_v1_empty_case() {
     println!("{:#?}", result_vector);
 }
 
+#[test]
 fn test_search_knn_v1_single_node_case() {
     // Test D: single node
     // 单节点图
@@ -399,7 +401,7 @@ fn test_search_knn_v1_single_node_case() {
     println!("{:#?}", result_vector);
 }
 
-
+#[test]
 fn test_search_knn_v1_unique_ranking_case() {
     // Test E: result size
     // 构造一个小图
@@ -416,7 +418,15 @@ fn test_search_knn_v1_unique_ranking_case() {
     let result_vector = index.search_knn_v1(&test_query, 3, 3);
     // result_vector.len():返回结果的个数. case.k: 要求返回前k个结果. 
     // 要求前者小于等于后者.
+    // 检查返回结果的个数不超过k.
     assert!(result_vector.len() <= case.k);
+    // 检查返回结果的第一个元素是否是预期的expected_result_id.
+    let expected_result_id = case
+        .expected_result_id
+        .expect("unique_ranking_case should define expected_result_id");
+    // 检查expected_result_id是否是返回结果中相似度最高的那个节点的id.
+    assert_eq!(result_vector[0], expected_result_id);
+    // 检查返回结果是否按相似度非增排序.
     assert!(
         result_vector.windows(2).all( |pair| {
             let left_node = index.get_node_by_id(pair[0]).expect("left node not found");

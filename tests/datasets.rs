@@ -185,16 +185,18 @@ pub fn empty_case() -> HnswTestCase {
 pub fn unique_ranking_case() -> HnswTestCase {
     HnswTestCase {
         nodes_data: vec![
-            (1, vec![10.0, 0.0], 0),
-            (2, vec![8.0, 1.0], 0),
-            (3, vec![6.0, 2.0], 0),
-            (4, vec![1.0, 9.0], 0),
             (5, vec![0.0, 10.0], 0),
+            (2, vec![8.0, 1.0], 0),
+            (8, vec![4.0, 8.0], 0),
+            (1, vec![10.0, 0.0], 0),
             (6, vec![-3.0, 7.0], 0),
+            (4, vec![1.0, 9.0], 0),
+            (7, vec![7.0, 3.0], 0),
+            (3, vec![6.0, 2.0], 0),
         ],
         query: vec![9.2, 0.3],
         entry_id: Some(1),
-        expected_result_id: None,
+        expected_result_id: Some(1),
         level: 0,
         k: 3,
         ef_search: 4,
