@@ -7,20 +7,8 @@ use toy_vector_db::{
     types::Id,
 };
 
-fn generate_nodes_data() -> Vec<(u64, Vec<f32>, usize)> {
-    vec![
-        (1, vec![10.0, 0.0], 0),
-        (2, vec![9.0, 1.0], 0),
-        (3, vec![8.0, 2.0], 0),
-        (4, vec![0.0, 10.0], 0),
-        (5, vec![1.0, 9.0], 0),
-        (6, vec![2.0, 8.0], 0),
-    ]
-}
-
 ///id: u64, data: Vec<f32>, lvl: usize
 fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
-    // 1. 创建 index
     let mut index = HnswIndex::new();
 
     // 2. 创建node并插入.
@@ -35,9 +23,6 @@ fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
     for (id, data, lvl) in nodes_data.iter() {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
     }
-
-    // println!("build_index get_entry_node_id is:");
-    // println!("{:#?}",index.get_entry_node_id());
     return index;
 }
 
@@ -329,7 +314,7 @@ fn test_search_knn_v1_old() {
 
 
 #[test]
-fn test_greedy_search_at_level() {
+fn test_greedy_search_at_level_greedy_chain_case() {
     //let nodes_data = generate_nodes_data();
 
     //Test A
@@ -341,23 +326,44 @@ fn test_greedy_search_at_level() {
     let test_query = case.query;
     
     let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    let expected_result_id = case
+        .expected_result_id
+        .expect("greedy_chain_case should define expected_result_id");
+    assert_eq!(result_id, expected_result_id, 
+        "test_greedy_search_at_level, greedy_chain_case: expected {}, got {}", expected_result_id, result_id);
     println!("Test A result_id is:");
     println!("{:#?}", result_id);
 
+}
+
+#[test]
+fn test_greedy_search_at_level_beginning_is_the_best_case() {
     //TestB
     // 构造一个节点在某层没有任何更优邻居的情形。
     // 检查函数是否直接返回入口点本身。
 
-    let case = single_node_case();
+    let case = beginning_is_the_best_case();
     let index = build_index(case.nodes_data);
-    let test_query = vec![8.1, 2.1];
+    let test_query = case.query;
     let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    let expected_result_id = case
+        .expected_result_id
+        .expect("beginning_is_the_best_case should define expected_result_id");
+    assert_eq!(result_id, expected_result_id,
+        "test_greedy_search_at_level,beginning_is_the_best_case: expected {}, got {}", expected_result_id, result_id);
+    
     println!("Test B result_id is:");
     println!("{:#?}", result_id);
 }
 
 #[test]
 fn test_search_knn_v1() {
+    test_search_knn_v1_empty_case();
+    test_search_knn_v1_single_node_case();
+    test_search_knn_v1_unique_ranking_case();
+}
+
+fn test_search_knn_v1_empty_case() {
     // Test C: empty index
     // 空图上调用 search_knn_v1(...)
     // 结果应为空
@@ -368,9 +374,13 @@ fn test_search_knn_v1() {
     println!("Test C get_entry_node_id is:");
     println!("{:#?}",index.get_entry_node_id());
     let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    assert!(result_vector.is_empty(), "空图时应当返回空结果");
+    
     println!("Test C result_vector is:");
     println!("{:#?}", result_vector);
+}
 
+fn test_search_knn_v1_single_node_case() {
     // Test D: single node
     // 单节点图
     // 查询任意向量
@@ -379,14 +389,23 @@ fn test_search_knn_v1() {
     let index = build_index(case.nodes_data);
     let test_query = case.query;
     let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    assert_eq!(result_vector.len(), 1);
+    let expected_result_id = case
+        .expected_result_id
+        .expect("single_node_case should define expected_result_id");
+    assert_eq!(result_vector[0], expected_result_id);
+    
     println!("Test D result_vector is:");
     println!("{:#?}", result_vector);
+}
 
+
+fn test_search_knn_v1_unique_ranking_case() {
     // Test E: result size
     // 构造一个小图
     // 调用 search_knn_v1(query, k, ef_search)
     // 检查返回长度不超过 k
-
+    
     // Test F: ranking
     // 构造一个小图
     // 调用查询
@@ -394,11 +413,24 @@ fn test_search_knn_v1() {
     let case = unique_ranking_case();
     let index = build_index(case.nodes_data);
     let test_query = case.query;
-
     let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    // result_vector.len():返回结果的个数. case.k: 要求返回前k个结果. 
+    // 要求前者小于等于后者.
+    assert!(result_vector.len() <= case.k);
+    assert!(
+        result_vector.windows(2).all( |pair| {
+            let left_node = index.get_node_by_id(pair[0]).expect("left node not found");
+            let right_node = index.get_node_by_id(pair[1]).expect("right node not found");
+            let left_score = toy_vector_db::distance::cosine_similarity(&test_query, left_node.get_data());
+            let right_score = toy_vector_db::distance::cosine_similarity(&test_query, right_node.get_data());
+
+            left_score >= right_score
+        }),
+        "result_vector不满足非增排序"
+    );
+
     println!("Test E/F result_vector is:");
     println!("{:#?}", result_vector);
-
 }
 
 
