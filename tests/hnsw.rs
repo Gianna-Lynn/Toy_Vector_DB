@@ -1,6 +1,43 @@
-use std::{collections::HashSet, vec};
+use std::{collections::HashSet, u64, vec};
 
-use toy_vector_db::{index::hnsw::{HnswIndex, HnswNode}, types::Id};
+use toy_vector_db::{
+    index::hnsw::{HnswIndex, HnswNode},
+    types::Id,
+};
+
+fn generate_nodes_data() -> Vec<(u64, Vec<f32>, usize)> {
+    vec![
+        (1, vec![10.0, 0.0], 0),
+        (2, vec![9.0, 1.0], 0),
+        (3, vec![8.0, 2.0], 0),
+        (4, vec![0.0, 10.0], 0),
+        (5, vec![1.0, 9.0], 0),
+        (6, vec![2.0, 8.0], 0),
+    ]
+}
+
+///id: u64, data: Vec<f32>, lvl: usize
+fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
+    // 1. 创建 index
+    let mut index = HnswIndex::new();
+
+    // 2. 创建node并插入.
+    // let nodes_data=[
+    //     (1, vec![10.0, 0.0], 0),
+    //     (2, vec![9.0, 1.0], 0),
+    //     (3, vec![8.0, 2.0], 0),
+    //     (4, vec![0.0, 10.0], 0),
+    //     (5, vec![1.0 , 9.0], 0),
+    //     (6, vec![2.0, 8.0], 0),
+    // ];
+    for (id, data, lvl) in nodes_data.iter() {
+        index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
+    }
+
+    // println!("build_index get_entry_node_id is:");
+    // println!("{:#?}",index.get_entry_node_id());
+    return index;
+}
 
 #[test]
 fn test_insert_two_nodes() {
@@ -12,20 +49,27 @@ fn test_insert_two_nodes() {
     // 3. 插入
     index.insert(node_1);
     index.insert(node_2);
+
+    
     // 4. 检查结果
     //println!("{:?}", index.get_nodes());
     assert_eq!(index.len(), 2, "index.len() is not 2");
     // 先拿到节点 → 再拿到某层邻居表 → 再检查里面是否包含某个 id
     let test_node_1 = index.get_node_by_id(1).expect("test_node_1 does not exist");
-    assert!(test_node_1.get_neighbors()[0].contains(&2), "test_node_1 cannot view 2");
-    
+    assert!(
+        test_node_1.get_neighbors()[0].contains(&2),
+        "test_node_1 cannot view 2"
+    );
+
     let test_node_2 = index.get_node_by_id(2).expect("test_node_2 does not exist");
-    assert!(test_node_2.get_neighbors()[0].contains(&1), "test_node_2 cannot view 1");
-    
+    assert!(
+        test_node_2.get_neighbors()[0].contains(&1),
+        "test_node_2 cannot view 1"
+    );
 }
 
 #[test]
-fn test_insert_three_nodes(){
+fn test_insert_three_nodes() {
     // 1. 创建 index
     let mut index = HnswIndex::new();
     // 2. 创建三个 node
@@ -43,37 +87,48 @@ fn test_insert_three_nodes(){
     // 先拿到节点 → 再拿到某层邻居表 → 再检查里面是否包含某个 id
     let test_lvl = 1;
     let test_node_1 = index.get_node_by_id(1).expect("test_node_1 does not exist");
-    assert!(test_node_1.get_neighbors()[test_lvl].contains(&2), "test_node_1 cannot view 2");
-    
+    assert!(
+        test_node_1.get_neighbors()[test_lvl].contains(&2),
+        "test_node_1 cannot view 2"
+    );
+
     let test_node_2 = index.get_node_by_id(2).expect("test_node_2 does not exist");
-    assert!(test_node_2.get_neighbors()[test_lvl].contains(&1), "test_node_2 cannot view 1");
-    assert!(test_node_2.get_neighbors()[test_lvl].contains(&3), "test_node_2 cannot view 3");
+    assert!(
+        test_node_2.get_neighbors()[test_lvl].contains(&1),
+        "test_node_2 cannot view 1"
+    );
+    assert!(
+        test_node_2.get_neighbors()[test_lvl].contains(&3),
+        "test_node_2 cannot view 3"
+    );
 
     let test_node_3 = index.get_node_by_id(3).expect("test_node_3 does not exist");
-    assert!(test_node_3.get_neighbors()[test_lvl].contains(&2), "test_node_3 cannot view 2");
-
+    assert!(
+        test_node_3.get_neighbors()[test_lvl].contains(&2),
+        "test_node_3 cannot view 2"
+    );
 }
 
 #[test]
-fn test_search_v0(){
+fn test_search_v0() {
     // 1. 创建 index
     let mut index = HnswIndex::new();
 
     // 2. 创建node并插入.
-    let nodes_data=[
+    let nodes_data = [
         (1, vec![10.0, 0.0], 2),
         (2, vec![9.0, 1.0], 2),
         (3, vec![8.0, 2.0], 2),
         (4, vec![0.0, 10.0], 2),
-        (5, vec![1.0 , 9.0], 2),
+        (5, vec![1.0, 9.0], 2),
         (6, vec![2.0, 8.0], 2),
     ];
-    for(id, data, lvl) in nodes_data.iter(){
+    for (id, data, lvl) in nodes_data.iter() {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
     }
 
     let test_query = vec![6.0, 6.0];
-    
+
     // 4. 检查结果(之前的部分)
     println!("{:#?}", index.get_nodes());
 
@@ -82,7 +137,7 @@ fn test_search_v0(){
     // let test_lvl = 1;
     // let test_node_1 = index.get_node_by_id(1).expect("test_node_1 does not exist");
     // assert!(test_node_1.get_neighbors()[test_lvl].contains(&2), "test_node_1 cannot view 2");
-    
+
     // let test_node_2 = index.get_node_by_id(2).expect("test_node_2 does not exist");
     // assert!(test_node_2.get_neighbors()[test_lvl].contains(&1), "test_node_2 cannot view 1");
     // assert!(test_node_2.get_neighbors()[test_lvl].contains(&3), "test_node_2 cannot view 3");
@@ -91,35 +146,32 @@ fn test_search_v0(){
     // assert!(test_node_3.get_neighbors()[test_lvl].contains(&2), "test_node_3 cannot view 2");
 
     // 5.检查search_v0的搜索结果.
-    if let Some(result_id) = index.search_v0(&test_query){
-        if let Some(result_node) = index.get_node_by_id(result_id){
+    if let Some(result_id) = index.search_v0(&test_query) {
+        if let Some(result_node) = index.get_node_by_id(result_id) {
             println!("The result is:");
-            println!("{:#?}",result_node.get_id());
-            println!("{:#?}",result_node.get_data());
+            println!("{:#?}", result_node.get_id());
+            println!("{:#?}", result_node.get_data());
         }
     }
-    
 }
 
-
 #[test]
-fn test_nearest_and_furthest(){
-
+fn test_nearest_and_furthest() {
     // 1. 创建 index
     let mut index = HnswIndex::new();
     // 1.1 创建set
-    let mut set: HashSet<Id>=HashSet::new();
+    let mut set: HashSet<Id> = HashSet::new();
 
     // 2. 创建node并插入.
-    let nodes_data=[
+    let nodes_data = [
         (1, vec![10.0, 0.0], 2),
         (2, vec![9.0, 1.0], 2),
         (3, vec![8.0, 2.0], 2),
         (4, vec![0.0, 10.0], 2),
-        (5, vec![1.0 , 9.0], 2),
+        (5, vec![1.0, 9.0], 2),
         (6, vec![2.0, 8.0], 2),
     ];
-    for(id, data, lvl) in nodes_data.iter(){
+    for (id, data, lvl) in nodes_data.iter() {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
         set.insert(*id);
     }
@@ -127,50 +179,46 @@ fn test_nearest_and_furthest(){
     let test_query = vec![6.0, 6.0];
 
     // 5.检查搜索结果.
-    if let Some(result_id) = index.get_nearest(&set, &test_query){
+    if let Some(result_id) = index.get_nearest(&set, &test_query) {
         assert!(result_id == 3 || result_id == 6);
-        if let Some(result_node) = index.get_node_by_id(result_id){
+        if let Some(result_node) = index.get_node_by_id(result_id) {
             println!("The nearest result is:");
-            println!("{:#?}",result_node.get_id());
-            println!("{:#?}",result_node.get_data());
-            
+            println!("{:#?}", result_node.get_id());
+            println!("{:#?}", result_node.get_data());
         }
-    }
-    else{
+    } else {
         panic!("get_nearest方法返回None")
     }
 
-    if let Some(result_id) = index.get_furthest(&set, &test_query){
+    if let Some(result_id) = index.get_furthest(&set, &test_query) {
         assert!(result_id == 1 || result_id == 4);
-        if let Some(result_node) = index.get_node_by_id(result_id){
+        if let Some(result_node) = index.get_node_by_id(result_id) {
             println!("The furthest result is:");
-            println!("{:#?}",result_node.get_id());
-            println!("{:#?}",result_node.get_data());
+            println!("{:#?}", result_node.get_id());
+            println!("{:#?}", result_node.get_data());
         }
-    }
-    else{
+    } else {
         panic!("get_furthest方法返回None")
     }
-
 }
 
 #[test]
-fn test_search_layer_v0(){
+fn test_search_layer_v0() {
     // 1. 创建 index
     let mut index = HnswIndex::new();
     // 1.1 创建set
-    let mut set: HashSet<Id>=HashSet::new();
+    let mut set: HashSet<Id> = HashSet::new();
 
     // 2. 创建node并插入.
-    let nodes_data=[
+    let nodes_data = [
         (1, vec![10.0, 0.0], 0),
         (2, vec![9.0, 1.0], 0),
         (3, vec![8.0, 2.0], 0),
         (4, vec![0.0, 10.0], 0),
-        (5, vec![1.0 , 9.0], 0),
+        (5, vec![1.0, 9.0], 0),
         (6, vec![2.0, 8.0], 0),
     ];
-    for(id, data, lvl) in nodes_data.iter(){
+    for (id, data, lvl) in nodes_data.iter() {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
         set.insert(*id);
     }
@@ -184,4 +232,95 @@ fn test_search_layer_v0(){
 
     assert!(!result_set.is_empty());
     assert!(result_set.len() <= 3);
+}
+
+#[test]
+fn test_greedy_search_at_level() {
+    //let nodes_data = generate_nodes_data();
+
+    //Test A
+    //构造一个简单单层图，使得从某个入口点出发可以沿邻居不断接近查询点。
+    //检查返回值是否为最终停止节点。
+    let nodes_data = vec![
+        (1, vec![10.0, 0.0], 0),
+        (2, vec![9.0, 1.0], 0),
+        (3, vec![8.0, 2.0], 0),
+        (4, vec![0.0, 10.0], 0),
+        (5, vec![1.0, 9.0], 0),
+        (6, vec![2.0, 8.0], 0),
+    ];
+    let index = build_index(nodes_data);
+    let test_query = vec![6.0, 6.0];
+    let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    println!("Test A result_id is:");
+    println!("{:#?}", result_id);
+
+    //TestB
+    // 构造一个节点在某层没有任何更优邻居的情形。
+    // 检查函数是否直接返回入口点本身。
+    let nodes_data = vec![
+        (1, vec![10.0, 0.0], 0),
+        (2, vec![9.0, 1.0], 0),
+        (3, vec![8.0, 2.0], 0),
+        (4, vec![0.0, 10.0], 0),
+        (5, vec![1.0, 9.0], 0),
+        (6, vec![2.0, 8.0], 0),
+    ];
+    let index = build_index(nodes_data);
+    let test_query = vec![8.1, 2.1];
+    let result_id = index.greedy_search_at_level(&test_query, 1, 0);
+    println!("Test B result_id is:");
+    println!("{:#?}", result_id);
+}
+
+#[test]
+fn test_search_knn_v1() {
+    // Test C: empty index
+    // 空图上调用 search_knn_v1(...)
+    // 结果应为空
+    let nodes_data:Vec<(u64, Vec<f32>, usize)> = vec![];
+    let index = build_index(nodes_data);
+    let test_query = vec![8.1, 2.1];
+    println!("Test C get_entry_node_id is:");
+    println!("{:#?}",index.get_entry_node_id());
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test C result_vector is:");
+    println!("{:#?}", result_vector);
+
+    // Test D: single node
+    // 单节点图
+    // 查询任意向量
+    // 返回结果应只包含该节点
+    let nodes_data:Vec<(u64, Vec<f32>, usize)> = vec![
+        (1, vec![10.0, 0.0], 0),
+    ];
+    let index = build_index(nodes_data);
+    let test_query = vec![8.1, 2.1];
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test D result_vector is:");
+    println!("{:#?}", result_vector);
+
+    // Test E: result size
+    // 构造一个小图
+    // 调用 search_knn_v1(query, k, ef_search)
+    // 检查返回长度不超过 k
+
+    // Test F: ranking
+    // 构造一个小图
+    // 调用查询
+    // 检查返回结果按相似度非增排序
+        let nodes_data = vec![
+        (1, vec![10.0, 0.0], 3),
+        (2, vec![9.0, 1.0], 1),
+        (3, vec![8.0, 2.0], 4),
+        (4, vec![0.0, 10.0], 3),
+        (5, vec![1.0, 9.0], 2),
+        (6, vec![2.0, 8.0], 0),
+    ];
+    let index = build_index(nodes_data);
+    let test_query = vec![8.1, 2.1];
+    let result_vector = index.search_knn_v1(&test_query, 3, 3);
+    println!("Test E/F result_vector is:");
+    println!("{:#?}", result_vector);
+
 }

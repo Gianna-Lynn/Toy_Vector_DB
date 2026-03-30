@@ -145,6 +145,9 @@ impl HnswIndex {
         &self.nodes
     }
 
+    pub fn get_entry_node_id(&self) -> Option<u64>{
+        self.entry_node_id
+    }
     pub fn search_v0(&self, query: &Vector) -> Option<Id> {
         if self.is_empty() {
             return None;
@@ -323,6 +326,78 @@ impl HnswIndex {
         }
         w_set
     }
+
+    pub fn greedy_search_at_level(&self, query: &Vector, entry_id: Id, level: usize)->Id{
+        //在该层经过贪心搜索后得到的最终节点 id. 区分于search_layer_v0(返回的是一个set)
+        let mut current_node = self.get_node_by_id(entry_id).expect("未能根据entry_id检索到entry_node");
+        let mut current_node_neighbors = &current_node.get_neighbors()[level];
+        let mut max_similarity = distance::cosine_similarity(current_node.get_data(), query);
+        let mut max_similarity_id = entry_id;
+        loop {
+            for neighbor in current_node_neighbors{
+                let neighbor_node = self.get_node_by_id(*neighbor).expect("未能检索到neighbor_node");
+                let neighbor_node_similarity = distance::cosine_similarity(neighbor_node.get_data(), query);
+                if neighbor_node_similarity > max_similarity{
+                    max_similarity = neighbor_node_similarity;
+                    max_similarity_id = *neighbor_node.get_id();
+                }
+            }
+            if current_node.get_id() == &max_similarity_id{
+                return max_similarity_id
+            }
+            else{
+                current_node = self.get_node_by_id(max_similarity_id).expect("未能更新current_node");
+                current_node_neighbors = &current_node.get_neighbors()[level];
+            }
+        }
+    }
+
+    pub fn search_knn_v1(&self, query: &Vector, k: usize, ef_search:usize) -> Vec<Id>{
+        //ef_searchs是第0层的搜索宽度.
+        //返回: 按与 query 的相似度从高到低排序后的 top-k 节点 id
+        //let entry_node_id=self.entry_node_id.expect("search_knn_v1: entry_node_id不存在");
+        //let entry_node = self.get_node_by_id(entry_node_id).expect("search_knn_v1: 未能找到entry_node");
+        //let entry_node_neighbors = entry_node.get_neighbors();
+        //let neighbors_num = entry_node_neighbors.len();
+        //let mut entry_node_neighbors_lvl = 0;
+
+
+        //let mut current_entry_id = self.entry_node_id.expect("search_knn_v1: entry_node_id不存在");
+        //这个地方不要直接panic, 而是返回一个空集合.
+        let Some(mut current_entry_id) = self.entry_node_id else{
+            return Vec::new();
+        };
+        for lvl in (1..=self.index_max_level).rev(){
+            current_entry_id = self.greedy_search_at_level(query, current_entry_id , lvl);
+        }
+        let candidate_set =self.search_layer_v0(query, current_entry_id, 0, ef_search);
+        let mut candidate_sequence: Vec<Id> = candidate_set.into_iter().collect();
+        //into_iter消费了candidate_set, 以后就不能用了.
+        candidate_sequence.sort_by(|id1, id2|{
+            let node_1 = self.get_node_by_id(*id1).expect("id1找不到节点");
+            let node_2 = self.get_node_by_id(*id2).expect("id2找不到节点");
+            let score1 = distance::cosine_similarity(query, node_1.get_data());
+            let score2 = distance::cosine_similarity(query, node_2.get_data());
+            // partial_cmp 只做一件事：比较两个数，返回 Less、Equal、Greater。
+            match score2.partial_cmp(&score1).unwrap() {
+                // partical_cmp语句返回: scroe2 (  > / < / = ) score1
+                // 这会导致高分排在更小下标,也就是降序
+                // sort_by 约定：比较器返回 Less，就表示第一个参数要排在第二个参数前面；
+                // 返回 Greater，就表示第一个参数要排在第二个参数后面。
+                std::cmp::Ordering::Equal => id1.cmp(id2),
+                other => other,
+            }
+        });
+
+        if candidate_sequence.len() < k {
+            return candidate_sequence
+        }
+        else {
+            return candidate_sequence[..k].to_vec()
+            
+        }
+
+    }
 }
 
 impl HnswNode {
@@ -364,4 +439,5 @@ impl HnswNode {
     pub fn get_id(&self) -> &Id {
         &self.id
     }
+
 }
