@@ -1,7 +1,8 @@
 mod datasets;
 
 use datasets::*;
-use std::{collections::HashSet, u64, vec};
+use rand::seq::index;
+use std::{collections::HashSet, u64, usize, vec};
 use toy_vector_db::{
     index::hnsw::{HnswIndex, HnswNode},
     types::Id,
@@ -11,7 +12,6 @@ use toy_vector_db::{
 fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
     let mut index = HnswIndex::new();
 
-    // 2. 创建node并插入.
     // let nodes_data=[
     //     (1, vec![10.0, 0.0], 0),
     //     (2, vec![9.0, 1.0], 0),
@@ -23,6 +23,16 @@ fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
     for (id, data, lvl) in nodes_data.iter() {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
     }
+    return index;
+}
+
+fn build_index_v1(dataset: &HnswTestCase) -> HnswIndex {
+    let mut index = HnswIndex::new();
+    let m= 2;
+    let m_max = 4;
+    for(id, data, ef) in dataset.nodes_data.iter(){
+        index.insert_v1(*id, data.clone(), *ef, m, m_max);
+    }   
     return index;
 }
 
@@ -444,3 +454,65 @@ fn test_search_knn_v1_unique_ranking_case() {
 }
 
 
+// Test A: sample_level distribution sanity check
+// 多次调用 sample_level()，统计不同 level 出现频次。
+// 检查：
+// count(level=0) 应不少于 count(level=1)
+// count(level=1) 应不少于 count(level=2)
+// 不要求严格数学检验，只做 sanity check。
+#[test]
+fn test_insert_v1_a() {
+
+    
+    // let case = unique_ranking_case();
+    // // let test_query = unique_ranking_case().query;
+    // let mut index = build_index_v1(&case);
+    // let nodes_vec = index.get_nodes();
+
+    // let mut cnt_lvl_0 = 0;
+    // let mut cnt_lvl_1 =0;
+    // let mut cnt_lvl_2 =0;
+    
+    
+    // for node in nodes_vec{
+    //     let lvl = node//我才意识到好像没有特别好的数据结构...
+
+    // }
+}
+
+// Test B: insert into empty graph
+// 空图执行一次 insert_v1
+// 检查：
+// len() == 1
+// entry_node_id 存在
+// 节点可被检索到
+#[test]
+fn test_insert_v1_b() {
+}
+
+// Test C: insert second node
+// 连续插入两个节点
+// 检查：
+// 两节点都存在
+// 某些共同层上发生双向连边
+#[test]
+fn test_insert_v1_c() {
+}
+
+// Test D: insert multiple nodes
+// 插入多个节点
+// 检查：
+// len() 正确
+// entry_node_id 合法
+// 图中没有明显断裂到完全无法访问的新节点
+#[test]
+fn test_insert_v1_d() {
+}
+
+// Test E: higher-level node may update entry point
+// 如果采样层数可控，或测试中允许手动指定层数版本：
+// 插入一个层数更高的新节点
+// 检查它是否成为新入口点
+#[test]
+fn test_insert_v1_e() {
+}
