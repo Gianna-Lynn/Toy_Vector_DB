@@ -13,7 +13,7 @@ pub struct HnswIndex {
     //max_level: u64
     index_max_level: usize, //保存图中最高层数
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HnswNode {
     id: Id,
     //data: Vec<Record>, //不能这么写.一个HNSW节点只对应一条向量记录,也就是一个Record, 不要再建立一个Vec<Record>
@@ -189,13 +189,15 @@ impl HnswIndex {
 
     //把编号为neighbor_id的节点添加到node_id的第level层的邻居Vec中
     pub fn add_neighbor_to_node_at_level(&mut self, node_id:Id, neighbor_id:Id, level: usize){
-        let neighbor_node = self.get_node_by_id(neighbor_id)
-            .expect("in add_neighbor_to_node, in get_mut_node_by_id, got None");
-        //下面这地方只需要值, 不需要引用, 所以都加上*解引用, 只要值.
-        let neighbor_node_id_value = *neighbor_node.get_id();
+        // let neighbor_node = self.get_node_by_id(neighbor_id)
+        //     .expect("in add_neighbor_to_node, in get_mut_node_by_id, got None");
+        // //下面这地方只需要值, 不需要引用, 所以都加上*解引用, 只要值.
+        // let neighbor_node_id_value = *neighbor_node.get_id();
+        // 改进: 实际上根本不需要解引用, 因为neighbor_node_id_value就是函数参数中的neighbor_node, 本来就有了, 白绕一大圈
+        
         let node = self.get_mut_node_by_id(node_id)
             .expect("in add_neighbor_to_node, in get_mut_node_by_id, got None");
-        node.add_neighbor(neighbor_node_id_value, level);
+        node.add_neighbor(neighbor_id, level);
     }
 
     pub fn get_nodes(&self) -> &Vec<HnswNode> {
@@ -503,23 +505,48 @@ impl HnswIndex {
         // - 从 index_max_level 一路下降到 new_node_level + 1。
         // - 在这些层上调用 greedy_search_at_level(...)
         // - 得到一个更接近新节点向量的入口点。
+
+        
+        // debug: 遗漏: 因为前面的代码实在太多, 导致遗漏了"新节点进图"的这个动作.
+        self.nodes.push(new_node); // 所有权分析: push方法接收的是无引用的参数, 获得了所有权.
+
         let mut search_result_id = self.get_entry_node_id().expect("in insert_v1, entry_node_id is none");
-        assert!(self.index_max_level >= new_node_level + 1, "in insert_v1, expected self.index_max_level >= new_node_level + 1, got < ");
-        for l in (self.index_max_level .. new_node_level + 1).rev(){
-            search_result_id = self.greedy_search_at_level(new_node.get_data(),search_result_id, l);
+
+        // debug: 理解有误: greedy_search是在“新节点根本不存在的更高层”上完成的. 如果新节点的层数大于等于旧图最高层, 那么这个assert断言就会失败.
+        //                 正确的做法应该是使用条件逻辑, 分为 "新节点之上有更高层"和 "新节点之上没有更高层"两种情况处理.
+        //        盲信伪代码: 伪代码 line 5 的原文是从 旧图最高层开始向下遍历到新节点所在层的上一层, 但是没考虑到"新节点之上没有更高层"这种情况.
+        //assert!(self.index_max_level >= new_node_level + 1, "in insert_v1, expected self.index_max_level >= new_node_level + 1, got < ");
+        
+        if self.index_max_level >= new_node_level + 1{
+            // if这个条件不等式的成立保证了下面的for循环正常运行.
+            // debug: 混淆点位于伪代码(line 6, line 7)
+            // 伪代码line7中的ep已经不再是"整个Hnsw图的入口点", 而是一个"中间变量".
+            // 因为我们已经有"返回最近的唯一答案"greedy_search_at_level函数,所以line 6和line 7被一起执行.
+            // 伪代码中的ep, 实际上是下面这个for循环中的search_result_id
+            for l in (self.index_max_level .. new_node_level + 1).rev(){
+                // 所有权分析: 由于new_node在前面的"新节点进图"中, 所有权已经转移, 被消费掉了, 所以在这里调用new_node.get_data()就是非法的.
+                //            解决方案就是在push之前, 就把get_data()的结果保存下来, 供这里调用.
+                //            但是由于get_data()返回的是data: Vector,也就是insert_v1的参数data,所以这里可以直接用&data代替.
+                search_result_id = self.greedy_search_at_level(&data,search_result_id, l);
+            }
+
         }
 
         // Phase 3: Layer-by-layer neighbor search.
         // - 对每一层 level = min(index_max_level, new_node_level), ..., 0。
         let min_level = std::cmp::min(self.index_max_level, new_node_level);
-        for current_lvl in (0 .. min_level).rev(){
+        
+        // debug: 对for循环范围声明不清楚. current_lvl需要从min_level开始一直反向遍历到0, 并且包含min_level和0.
+        // for current_lvl in (0 .. min_level).rev(){    //这样的写法是从min_level_-1开始遍历到0
+        for current_lvl in (0..=min_level).rev(){ //这样的写法是从min_level开始遍历到0
             // - 调用 search_layer_v0(query = new_node.data, entry_id = current_entry, level, ef_construction)。
             // - 获得候选集合 W_set。
-            let w_set = self.search_layer_v0(new_node.get_data(), search_result_id, current_lvl, ef);
+            let w_set = self.search_layer_v0(&data, search_result_id, current_lvl, ef);
             // - 从候选中选出最多 M 个邻居。(尚未实现)
             let neighbors_set = &self.select_neighbors_simple(&w_set,&data,m);
             // - 将这些邻居与新节点双向连边。(line 11)
             for neighbor_node_id in neighbors_set{
+                // debug: 遗漏导致的后果: 如果new_node没有及时进图的话,在图中通过id来查找node的动作就会失败,整个for循环都无法正常执行.
                 self.add_neighbor_to_node_at_level(id, *neighbor_node_id, current_lvl);
                 self.add_neighbor_to_node_at_level(*neighbor_node_id, id, current_lvl);
             }
@@ -544,7 +571,8 @@ impl HnswIndex {
 
                 if e_conn_set.len() > m_max {
                     // let e_new_conn_set = &self.select_neighbors_simple(&e_conn_set,e_node.get_data(), m_max);
-                    let e_new_conn_set: HashSet<u64> = {
+                    // 改进: 这里返回的是一个有序Vec
+                    let e_new_conn_vec: Vec<u64> = {
                         let e_node = self.get_node_by_id(*e_id)
                             .expect("in insert_v1, get_node_by_id cannot handle e_id");
 
@@ -554,13 +582,18 @@ impl HnswIndex {
 
                     let e_node = self.get_mut_node_by_id(*e_id)
                         .expect("in insert_v1, get_node_by_id cannot handle e_id");
-                    e_node.neighbors[current_lvl] = e_new_conn_set.iter().copied().collect();
+                    
+                    //e_node.neighbors[current_lvl] = e_new_conn_set.iter().copied().collect();
+                    // 改进: 利用vec直接赋值
+                    e_node.neighbors[current_lvl] = e_new_conn_vec;
                 }
             }
 
             //此处对应 line 17, 目前就是随便从w_set当中拿一个
-            self.entry_node_id = w_set.iter().next().copied();
-            
+            // debug: 理解有误.line 17的ep是一个局部变量, 不再代表"整个hnsw图的入口点"
+            // self.entry_node_id = w_set.iter().next().copied();
+            // TODO: 这个地方伪代码直观上看是把一个集合赋值给了一个id.这显然是有待改进的.不过为了通过编译, 我们姑且先这么写吧.
+            search_result_id = w_set.iter().next().copied().expect("searchh_result_id赋值错误");
                  
         }
        
@@ -577,7 +610,7 @@ impl HnswIndex {
 
     // 实现一个简化版本的邻居选择函数
     // cadidates: 候选集合, m:返回的邻居数目,如果不足m个,就全部返回.
-    pub fn select_neighbors_simple(&self, candidate_set: &HashSet<Id>, query: &Vector, m: usize) -> HashSet<Id>{
+    pub fn select_neighbors_simple(&self, candidate_set: &HashSet<Id>, query: &Vector, m: usize) -> Vec<Id>{
         
         let mut candidate_sequence: Vec<Id> = candidate_set.iter().copied().collect();
         //into_iter消费了candidate_set, 以后就不能用了.intor_iter()迭代出的是&Id, 而不是Id, 不能收集进入Vec<Id>
@@ -599,12 +632,23 @@ impl HnswIndex {
             }
         });
 
-        let selected:HashSet<Id>= candidate_sequence.iter().take(m).copied().collect();
+        // let selected:HashSet<Id>= candidate_sequence.iter().take(m).copied().collect();
         // iter()：按引用遍历:遍历时拿到的是元素的引用，不是元素本身,迭代器走出来的每一项&u64
         // take(m)：只取前 m 个:少于m个甚至为空都没问题.
         // copied()：把 &Id 变成 Id
-        // collect()：收集成 HashSet<Id>.这样会让返回的结果重新变得无序.如果需要保持有序,去掉collect()
+        // collect()：收集成 HashSet<Id>.这样会让返回的结果重新变得无序.
+        
+        // 改进: 返回Vec<Id>, 而不是Hashset<Id>, 保持有序.
+        // 用下面的切片语句做到"在candidate_sequence中,取前m个, 如果不足m个,就全部返回."
+        let take_count = m.min(candidate_sequence.len());
+        return candidate_sequence[..take_count].to_vec();
 
-        return selected
+        // 改进:
+        // 用下面的.truncate(m)方法搭配判断语句,也能达到同样效果.
+        // if candidate_sequence.len() > m {
+        //     candidate_sequence.truncate(m);
+        // }
+        // return candidate_sequence;
+
     }
 }

@@ -30,8 +30,28 @@ fn build_index_v1(dataset: &HnswTestCase) -> HnswIndex {
     let mut index = HnswIndex::new();
     let m= 2;
     let m_max = 4;
-    for(id, data, ef) in dataset.nodes_data.iter(){
-        index.insert_v1(*id, data.clone(), *ef, m, m_max);
+
+    //这里未来需要新的数据结构, 在原版的dataset.nodes_data中,三元组的结构是
+    // (id, data, lvl), 而不是(id, data, ef)
+    // 所以需要在这里写死一个ef(搜索宽度)
+    let ef = 3;
+
+    // for(id, data, ef) in dataset.nodes_data.iter(){ //这里传错了, ef的位置上是lvl
+    // 但是现在已经不需要再由数据集显式地写出每个节点的level了, 因为level已被自动分配.
+    for(id, data, _) in dataset.nodes_data.iter(){
+        // 修改以后, 从迭代器只取出id和data
+   
+        // 函数签名
+        // pub fn insert_v1(
+        //     &mut self,
+        //     id: Id,
+        //     data: Vector,
+        //     ef: usize,
+        //     m: usize,
+        //     m_max: usize
+        // )
+                
+        index.insert_v1(*id, data.clone(), ef, m, m_max);
     }   
     return index;
 }
