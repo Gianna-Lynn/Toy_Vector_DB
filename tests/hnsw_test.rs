@@ -577,6 +577,7 @@ fn test_insert_v1_two_nodes_minimal() {
     let empty_vec: Vec<u64> = Vec::new();
     
     for lvl in 0..=max_level {
+        // 获取两节点在当前层的邻居列表，如果当前层不存在邻居列表则使用空列表
         let neighbors1 = if lvl < node1.get_neighbors().len() {
             &node1.get_neighbors()[lvl]
         } else {
@@ -649,6 +650,7 @@ fn test_insert_v1_multiple_nodes_connected() {
     println!("Test 3 passed: 多个节点插入成功，没有悬空节点");
 }
 // ========== 新的刁钻测试样例测试 ==========
+// 主要针对查询进行测试,而不是插入
 
 #[test]
 fn test_tricky_identical_vectors() {
