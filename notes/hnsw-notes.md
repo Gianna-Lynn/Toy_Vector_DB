@@ -16,3 +16,27 @@ type Vector = Vec<f32>;
 data:Vector;
 等价于
 data:Vec<f32>;
+
+
+
+# 区分iter(), iter_mut(), into_iter()
+let v = vec![1, 2, 3];
+
+
+## 方式 1: iter() - 借用，不动容器
+for &x in v.iter() {
+    println!("{}", x);
+}
+println!("{:?}", v);  // v 还在，可以用
+
+## 方式 2: iter_mut() - 可变借用，不动容器
+for x in v.iter_mut() {
+    *x += 1;
+}
+println!("{:?}", v);  // v 还在，可以用
+
+## 方式 3: into_iter() - 移动所有权.v被吃掉了，不能再用
+for x in v.into_iter() {
+    println!("{}", x);
+}
+// println!("{:?}", v);  // 错！v 已经被吃掉了,不能再用

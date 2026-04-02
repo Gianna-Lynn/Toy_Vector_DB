@@ -449,10 +449,14 @@ impl HnswIndex {
             let score2 = distance::cosine_similarity(query, node_2.get_data());
             // partial_cmp 只做一件事：比较两个数，返回 Less、Equal、Greater。
             match score2.partial_cmp(&score1).unwrap() {
-                // partical_cmp语句返回: scroe2 (  > / < / = ) score1
+                // partical_cmp语句返回: score2 (  > / < / = ) score1
                 // 这会导致高分排在更小下标,也就是降序
                 // sort_by 约定：比较器返回 Less，就表示第一个参数要排在第二个参数前面；
                 // 返回 Greater，就表示第一个参数要排在第二个参数后面。
+                
+                // partical_cmp 返回类型不是 Ordering，而是 Option<Ordering>。
+                // unwrap 是 Option 的方法, 把 Option<Ordering> 取出成 Ordering
+                // Some(order) -> 返回 order, None -> 直接 panic
                 std::cmp::Ordering::Equal => id1.cmp(id2),
                 other => other,
             }
@@ -484,10 +488,10 @@ impl HnswIndex {
     // 参数说明:
     // - id: 新节点的唯一标识符
     // - data: 新节点的向量数据
-    // - ef: 在构建过程中搜索层时使用的参数，控制搜索的宽度
+    // - ef_construction: 在构建过程中搜索层时使用的参数，控制搜索的宽度
     // - m: 每层连接的最大邻居数. 在插入新节点时, 每层最多连接m个邻居.
     // - m_max: 每层允许的最大邻居数. 在插入新节点时, 如果某个节点的邻居数超过m_max, 就需要进行邻居选择和替换.
-    pub fn insert_v1(&mut self, id: Id, data: Vector, ef: usize, m: usize, m_max: usize) {
+    pub fn insert_v1(&mut self, id: Id, data: Vector, ef_construction: usize, m: usize, m_max: usize) {
         
         //************************* line 4 *******************************//
         // Phase 1: Create new node.
@@ -582,7 +586,7 @@ impl HnswIndex {
             /**************************************** line 9 获得候选集合 W_set **************************************************/
             // 在会出现新节点的层上, 需要扩大搜索范围, ef不再只是1.
             // 不同于前面在更高层上搜索时的粗搜, 这里需要在新节点所在层上进行精搜, 以便得到一个更大的候选集合.因此ef的值应该大于1.
-            let w_set = self.search_layer_v0(&data, entry_point_id, current_lvl, ef);
+            let w_set = self.search_layer_v0(&data, entry_point_id, current_lvl, ef_construction);
             
             /**************************************** line 10 从候选中选出最多 M 个邻居 **************************************************/
             // TODO:
