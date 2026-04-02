@@ -431,12 +431,17 @@ impl HnswIndex {
         let Some(mut current_entry_id) = self.entry_node_id else {
             return Vec::new();
         };
+
+        //从第index_max_level层开始一直向下搜索到第1层, 使用朴素贪心搜索
         for lvl in (1..=self.index_max_level).rev() {
             current_entry_id = self.greedy_search_at_level(query, current_entry_id, lvl);
         }
+        //第0层使用带候选集的精细搜索
         let candidate_set = self.search_layer_v0(query, current_entry_id, 0, ef_search);
         let mut candidate_sequence: Vec<Id> = candidate_set.into_iter().collect();
         //into_iter消费了candidate_set, 以后就不能用了.
+
+        /******************************** 排序逻辑 *******************************************/
         candidate_sequence.sort_by(|id1, id2| {
             let node_1 = self.get_node_by_id(*id1).expect("id1找不到节点");
             let node_2 = self.get_node_by_id(*id2).expect("id2找不到节点");

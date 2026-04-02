@@ -1,6 +1,7 @@
 mod datasets;
 
 use datasets::*;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::{collections::HashSet, u64, usize, vec};
 use toy_vector_db::{
     index::hnsw::{HnswIndex, HnswNode},
@@ -23,6 +24,83 @@ fn build_index(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
         index.insert(HnswNode::new(*id, data.to_vec(), *lvl));
     }
     return index;
+}
+
+fn build_index_v1(nodes_data: Vec<(u64, Vec<f32>, usize)>) -> HnswIndex {
+    let mut index = HnswIndex::new();
+    let ef = 10;
+    let m = 2;
+    let m_max = 4;
+
+    for (id, data, _) in nodes_data.iter() {
+        index.insert_v1(*id, data.clone(), ef, m, m_max);
+    }
+
+    index
+}
+
+fn expected_search_knn_v1_ids(case: &HnswTestCase) -> Vec<Id> {
+    let mut scored_ids: Vec<(Id, f32)> = case
+        .nodes_data
+        .iter()
+        .map(|(id, data, _)| {
+            (
+                *id,
+                toy_vector_db::distance::cosine_similarity(&case.query, data),
+            )
+        })
+        .collect();
+
+    scored_ids.sort_by(|(left_id, left_score), (right_id, right_score)| {
+        match right_score.partial_cmp(left_score).unwrap() {
+            std::cmp::Ordering::Equal => left_id.cmp(right_id),
+            other => other,
+        }
+    });
+
+    scored_ids
+        .into_iter()
+        .take(case.k)
+        .map(|(id, _)| id)
+        .collect()
+}
+
+fn assert_search_knn_v1_case(case_name: &str, case: HnswTestCase) {
+    let expected_result_ids = expected_search_knn_v1_ids(&case);
+    let HnswTestCase {
+        nodes_data,
+        query,
+        k,
+        ef_search,
+        ..
+    } = case;
+    let index = build_index_v1(nodes_data);
+    let result_ids = index.search_knn_v1(&query, k, ef_search);
+
+    assert_eq!(
+        result_ids, expected_result_ids,
+        "{}: expected {:?}, got {:?}",
+        case_name, expected_result_ids, result_ids
+    );
+}
+
+fn run_search_knn_v1_case(case_name: &str, case: HnswTestCase) -> Result<(), String> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        assert_search_knn_v1_case(case_name, case);
+    }));
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(payload) => {
+            if let Some(message) = payload.downcast_ref::<String>() {
+                Err(message.clone())
+            } else if let Some(message) = payload.downcast_ref::<&str>() {
+                Err((*message).to_string())
+            } else {
+                Err(format!("{}: test panicked with a non-string payload", case_name))
+            }
+        }
+    }
 }
 
 #[test]
@@ -442,6 +520,58 @@ fn test_search_knn_v1_unique_ranking_case() {
     println!("{:#?}", result_vector);
 }
 
+
+#[test]
+fn test_search_knn_v1_exact_cases() {
+    let cases = [
+        ("empty_case", empty_case as fn() -> HnswTestCase),
+        ("single_node_case", single_node_case as fn() -> HnswTestCase),
+        ("unique_ranking_case", unique_ranking_case as fn() -> HnswTestCase),
+        ("multilevel_case", multilevel_case as fn() -> HnswTestCase),
+        ("identical_vectors_case", identical_vectors_case as fn() -> HnswTestCase),
+        ("duplicate_distance_case", duplicate_distance_case as fn() -> HnswTestCase),
+        ("collinear_points_case", collinear_points_case as fn() -> HnswTestCase),
+        (
+            "clustered_distribution_case",
+            clustered_distribution_case as fn() -> HnswTestCase,
+        ),
+        ("high_dimension_case", high_dimension_case as fn() -> HnswTestCase),
+        ("extreme_values_case", extreme_values_case as fn() -> HnswTestCase),
+        ("near_zero_distance_case", near_zero_distance_case as fn() -> HnswTestCase),
+        (
+            "k_larger_than_dataset_case",
+            k_larger_than_dataset_case as fn() -> HnswTestCase,
+        ),
+        ("tightly_packed_case", tightly_packed_case as fn() -> HnswTestCase),
+        ("extreme_ef_search_case", extreme_ef_search_case as fn() -> HnswTestCase),
+        (
+            "negative_coordinates_case",
+            negative_coordinates_case as fn() -> HnswTestCase,
+        ),
+        ("sparse_vectors_case", sparse_vectors_case as fn() -> HnswTestCase),
+    ];
+
+    let mut failures = Vec::new();
+
+    for (case_name, case_fn) in cases {
+        println!("running search_knn_v1 case: {}", case_name);
+        if let Err(message) = run_search_knn_v1_case(case_name, case_fn()) {
+            eprintln!("case failed: {}", message);
+            failures.push(message);
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "search_knn_v1 exact cases failed:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn test_search_knn_v1_multilevel_case() {
+    assert_search_knn_v1_case("multilevel_case", multilevel_case());
+}
 
 // Test A: sample_level distribution sanity check
 // 多次调用 sample_level()，统计不同 level 出现频次。
