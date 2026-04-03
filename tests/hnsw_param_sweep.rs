@@ -19,11 +19,11 @@ use toy_vector_db::{
     
 /// id: u64, data: Vec<f32>, lvl: usize
 /// v1 版本的构图 helper, 复制自hnsw_test_v1.rs
+/// 人为指定每个节点所在的层次.
 fn build_index_v1(nodes_data: Vec<(u64, Vec<f32>, usize)>, ef_construction: usize, m: usize, m_max: usize) -> HnswIndex {
     let mut index = HnswIndex::new();
-
-    for (id, data, _) in nodes_data.iter() {
-        index.insert_v1(*id, data.clone(), ef_construction, m, m_max);
+    for (id, data, level) in nodes_data.iter() {
+        index.insert_v1_fixed_level(*id, data.clone(), ef_construction, m, m_max, level);
     }
     index
 }

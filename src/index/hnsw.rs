@@ -481,7 +481,9 @@ impl HnswIndex {
         let Some(mut current_entry_id) = entrance_id else {
             return Vec::new();
         };
-        for lvl in (1..=self.index_max_level).rev() {
+        let current_node = self.get_node_by_id(current_entry_id)
+            .expect("in search_knn_v1_from_entry_for_experiment, failed to get id with current_entry_id");
+        for lvl in (1..=*current_node.get_node_max_level()).rev() {
             current_entry_id = self.greedy_search_at_level(query, current_entry_id, lvl);
         }
         let candidate_set = self.search_layer_v0(query, current_entry_id, 0, ef_search);
@@ -731,6 +733,64 @@ impl HnswIndex {
             self.index_max_level = new_node_level;
         }
     }
+
+    // 基于insert_v1实现的测试专用函数, 人为指定这一点位于哪一层, 不使用随机采样层高的逻辑.
+    // 插入新节点的核心逻辑, 先不考虑并发和持久化等问题, 只关注算法本身.
+    // 参数说明:
+    // - id: 新节点的唯一标识符
+    // - data: 新节点的向量数据
+    // - ef_construction: 在构建过程中搜索层时使用的参数，控制搜索的宽度
+    // - m: 每层连接的最大邻居数. 在插入新节点时, 每层最多连接m个邻居.
+    // - m_max: 每层允许的最大邻居数. 在插入新节点时, 如果某个节点的邻居数超过m_max, 就需要进行邻居选择和替换.
+    // - level: 人为故意指定这一点位于哪一层.
+    pub fn insert_v1_fixed_level(&mut self, id: Id, data: Vector, ef_construction: usize, m: usize, m_max: usize, level: &usize) {
+        let new_node_level = *level;
+        let data_copy = data.clone();
+        let new_node = HnswNode::new(id, data_copy, new_node_level);
+        if self.is_empty() {
+            self.entry_node_id = Some(id);
+            self.index_max_level = new_node_level;
+            self.nodes.push(new_node);
+            return;
+        }
+        self.nodes.push(new_node);
+        let mut entry_point_id = self.get_entry_node_id().expect("in insert_v1, entry_node_id is none");
+        if self.index_max_level >= new_node_level + 1 {
+            for current_level in (new_node_level + 1..=self.index_max_level).rev() {
+                entry_point_id = self.greedy_search_at_level(&data, entry_point_id, current_level);
+            }
+        }
+        let min_level = std::cmp::min(self.index_max_level, new_node_level);
+        for current_lvl in (0..=min_level).rev() {
+            let w_set = self.search_layer_v0(&data, entry_point_id, current_lvl, ef_construction);
+            let neighbors_set = &self.select_neighbors_simple(&w_set, &data, m);
+            for neighbor_node_id in neighbors_set {
+                self.add_neighbor_to_node_at_level(id, *neighbor_node_id, current_lvl);
+                self.add_neighbor_to_node_at_level(*neighbor_node_id, id, current_lvl);
+            }
+            #[cfg(feature = "pruning")]
+            for e_id in neighbors_set {
+                let e_conn_set: HashSet<u64> = {
+                    let e_node = self.get_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
+                    e_node.get_neighbors()[current_lvl].iter().copied().collect()
+                };
+                if e_conn_set.len() > m_max {
+                    let e_new_conn_vec: Vec<u64> = {
+                        let e_node = self.get_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
+                        self.select_neighbors_simple(&e_conn_set, e_node.get_data(), m_max)
+                    };
+                    let e_node = self.get_mut_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
+                    e_node.neighbors[current_lvl] = e_new_conn_vec;
+                }
+            }
+            entry_point_id = self.get_nearest(&w_set, &data).expect("searchh_result_id赋值错误");
+        }
+        if new_node_level > self.index_max_level {
+            self.entry_node_id = Some(id);
+            self.index_max_level = new_node_level;
+        }
+    }
+
 
 
     // 实现一个简化版本的邻居选择函数
