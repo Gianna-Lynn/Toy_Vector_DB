@@ -431,3 +431,29 @@ pub fn sparse_vectors_case() -> HnswTestCase {
         ef_search: 4,
     }
 }
+
+
+pub fn bridge_trap_case() -> HnswTestCase {
+    HnswTestCase {
+        nodes_data: vec![
+            // 左团
+            (1, vec![10.0, 0.0], 2),
+            (2, vec![9.5, 0.5], 1),
+            (3, vec![9.0, 1.0], 0),
+
+            // 桥
+            (4, vec![5.0, 5.0], 1),
+
+            // 右团
+            (5, vec![1.0, 9.0], 0),
+            (6, vec![0.5, 9.5], 1),
+            (7, vec![0.0, 10.0], 2),
+        ],
+        query: vec![0.2, 9.8],
+        entry_id: Some(1),
+        expected_result_id: Some(7),
+        level: 0,
+        k: 3,
+        ef_search: 4,
+    }
+}

@@ -469,6 +469,39 @@ impl HnswIndex {
         }
     }
 
+
+    // 基于上面的search_knn_v1, 把搜索入口节点改成由参数传入.
+    pub fn search_knn_v1_from_entry_for_experiment(
+        &self,
+        entrance_id: Option<Id>,
+        query: &Vector,
+        k: usize,
+        ef_search: usize,
+    ) -> Vec<Id> {
+        let Some(mut current_entry_id) = entrance_id else {
+            return Vec::new();
+        };
+        for lvl in (1..=self.index_max_level).rev() {
+            current_entry_id = self.greedy_search_at_level(query, current_entry_id, lvl);
+        }
+        let candidate_set = self.search_layer_v0(query, current_entry_id, 0, ef_search);
+        let mut candidate_sequence: Vec<Id> = candidate_set.into_iter().collect();
+        candidate_sequence.sort_by(|id1, id2| {
+            let node_1 = self.get_node_by_id(*id1).expect("id1找不到节点");
+            let node_2 = self.get_node_by_id(*id2).expect("id2找不到节点");
+            let score1 = distance::cosine_similarity(query, node_1.get_data());
+            let score2 = distance::cosine_similarity(query, node_2.get_data());
+            match score2.partial_cmp(&score1).unwrap() {
+                std::cmp::Ordering::Equal => id1.cmp(id2),
+                other => other,
+            }
+        });
+        if candidate_sequence.len() < k {
+            return candidate_sequence;
+        } else {
+            return candidate_sequence[..k].to_vec();
+        }
+    }
     pub fn sample_level(&self) -> usize {
         //返回一个非负整数，表示新插入节点的最高层编号。
         //返回值应满足“高层更稀少、低层更多”的分布趋势.

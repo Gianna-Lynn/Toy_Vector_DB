@@ -115,10 +115,12 @@ fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
         // duplicate_distance_case(),
         // collinear_points_case(),
         // clustered_distribution_case(),
-        // extreme_values_case(),
+        extreme_values_case(),
         // near_zero_distance_case(),
         // k_larger_than_dataset_case(),
-        // tightly_packed_case(),
+        tightly_packed_case(),
+        sparse_vectors_case(),
+        bridge_trap_case(),
         // ===================================================
     ];
     let case_names= vec![
@@ -141,10 +143,12 @@ fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
         // "duplicate_distance_case".to_string(),
         // "collinear_points_case".to_string(),
         // "clustered_distribution_case".to_string(),
-        // "extreme_values_case".to_string(),
+        "extreme_values_case".to_string(),
         // "near_zero_distance_case".to_string(),
         // "k_larger_than_dataset_case".to_string(),
-        // "tightly_packed_case".to_string(),
+        "tightly_packed_case".to_string(),
+        "sparse_vectors_case".to_string(),
+        "bridge_trap_case".to_string(),
         // ===================================================
     ];
     return (cases, case_names);
@@ -197,7 +201,7 @@ fn experiment_param_sweep(){
                 // 对每个 case：
                 // 算 expected
                 // 用当前参数建图
-                // 用当前 ef_search 调 search_knn_v1(...)
+                // 用当前 ef_search 调 search_knn_v1_from_entry_for_experiment(...)
                 // 比较结果
 
                 // debug: 如果先let index, 后let expected_list: 前者利用值传递拿走了case.nodes_data, 后者想要整体借用case, rust不允许"部分字段已经被搬走后还想借用整个结构体"
@@ -208,7 +212,7 @@ fn experiment_param_sweep(){
                 let index = build_index_v1(case.nodes_data.clone(), ef_construction, m, m_max);
                 // debug: 这个地方的expected_list最好完全独立于build_index_v1.
                 // let expected_list = ideal_answer_generator(&index, &case.query, case.k);
-                let search_result_list = index.search_knn_v1(&case.query, case.k, ef_search);
+                let search_result_list = index.search_knn_v1_from_entry_for_experiment(case.entry_id, &case.query,  case.k, ef_search);
             
                 // 3
                 // 定义两个判断：
