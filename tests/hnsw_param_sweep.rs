@@ -90,70 +90,50 @@ fn ideal_answer_generator(case: &HnswTestCase, query: &Vector, top_k: usize) -> 
     return id_vec;
 }
 
-// debug: 输出的元组中第二个写成了 Vec<&str>会怎样? 
-//        &str 是“借用字符串”，但函数签名里没写清楚它借的是谁，所以编译器报：missing lifetime specifier
-//        由于cases是字符串字面量, 本身是 'static的, 写成Vec<& 'static str>, 或者加上.to_string(), 返回 Vec<String>
+// 简化 selected_cases() 的宏：自动从函数名生成case_name字符串
+macro_rules! add_test_cases {
+    ($($case_fn:ident),+ $(,)?) => {{
+        let cases = vec![$($case_fn()),+];
+        let case_names = vec![$(stringify!($case_fn).to_string()),+];
+        (cases, case_names)
+    }};
+}
+
 fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
-// 返回一个小列表, 内含要使用的全部试验样例case.
-    let cases=vec![
-        unique_ranking_case(),
-        multilevel_case(),
-        high_dimension_case(),
-        negative_coordinates_case(),
+    add_test_cases!(
+        // =============== 第一轮添加的case ===============
+        // unique_ranking_case,
+        // multilevel_case,
+        // high_dimension_case,
+        // negative_coordinates_case,
         
         // =============== 第二轮添加的case ===============
-        // two_node_case(),
-        // three_node_case(),
-        // dense_2d_case(),
-        // flat_2d_case(),
-        // greedy_chain_case(),
-        // search_layer_case(),
-        // greedy_stop_case(),
-        // single_node_case(),
-        // beginning_is_the_best_case(),
-        // identical_vectors_case(),
-        // duplicate_distance_case(),
-        // collinear_points_case(),
-        // clustered_distribution_case(),
-        extreme_values_case(),
-        // near_zero_distance_case(),
-        // k_larger_than_dataset_case(),
-        tightly_packed_case(),
-        sparse_vectors_case(),
-        bridge_trap_case(),
-        // ===================================================
-    ];
-    let case_names= vec![
-        "unique_ranking_case".to_string(),
-        "multilevel_case".to_string(),
-        "high_dimension_case".to_string(),
-        "negative_coordinates_case".to_string(),
-        
-        // =============== 第二轮添加的case ===============
-        // "two_node_case".to_string(),
-        // "three_node_case".to_string(),
-        // "dense_2d_case".to_string(),
-        // "flat_2d_case".to_string(),
-        // "greedy_chain_case".to_string(),
-        // "search_layer_case".to_string(),
-        // "greedy_stop_case".to_string(),
-        // "single_node_case".to_string(),
-        // "beginning_is_the_best_case".to_string(),
-        // "identical_vectors_case".to_string(),
-        // "duplicate_distance_case".to_string(),
-        // "collinear_points_case".to_string(),
-        // "clustered_distribution_case".to_string(),
-        "extreme_values_case".to_string(),
-        // "near_zero_distance_case".to_string(),
-        // "k_larger_than_dataset_case".to_string(),
-        "tightly_packed_case".to_string(),
-        "sparse_vectors_case".to_string(),
-        "bridge_trap_case".to_string(),
-        // ===================================================
-    ];
-    return (cases, case_names);
-    // TODO:
-    // 更自然的设计是直接返回 Vec<(case_name, case)>
+        // two_node_case,
+        // three_node_case,
+        // dense_2d_case,
+        // flat_2d_case,
+        // greedy_chain_case,
+        // search_layer_case,
+        // greedy_stop_case,
+        // single_node_case,
+        // beginning_is_the_best_case,
+        // identical_vectors_case,
+        // duplicate_distance_case,
+        // collinear_points_case,
+        // clustered_distribution_case,
+        // near_zero_distance_case,
+        // k_larger_than_dataset_case,
+        // extreme_values_case,
+        // tightly_packed_case,
+        // sparse_vectors_case,
+        // bridge_trap_case,
+
+        // =============== 第三轮添加的case ===============
+        weak_bridge_two_clusters_case,
+        crowded_near_neighbors_case,
+        single_bridge_chain_case,
+        highdim_bridge_case,
+    )
 }
 
 #[test] #[ignore] 

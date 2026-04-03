@@ -19,7 +19,7 @@ pub fn two_node_case() -> HnswTestCase {
             (1, vec![1.0, 2.0, 3.0], 3),
             (2, vec![2.0, 3.0, 4.0], 4),
         ],
-        query: vec![1.0, 0.0],
+        query: vec![1.0, 0.0, 0.0],
         entry_id: Some(1),
         expected_result_id: None,
         level: 0,
@@ -35,7 +35,7 @@ pub fn three_node_case() -> HnswTestCase {
             (2, vec![2.1, 3.1, 4.1], 4),
             (3, vec![2.0, 3.0, 4.0], 4),
         ],
-        query: vec![1.0, 0.0],
+        query: vec![1.0, 0.0, 0.0],
         entry_id: Some(1),
         expected_result_id: None,
         level: 0,
@@ -454,6 +454,140 @@ pub fn bridge_trap_case() -> HnswTestCase {
         expected_result_id: Some(7),
         level: 0,
         k: 3,
+        ef_search: 4,
+    }
+}
+
+// 弱桥双团 case
+// 从左团最高层入口开始，能不能跨过弱桥到右团
+// m 小时会不会桥接不牢
+// ef_search 小时会不会被左团困住
+pub fn weak_bridge_two_clusters_case() -> HnswTestCase {
+    HnswTestCase {
+        nodes_data: vec![
+            // 左团（错误团）
+            (1, vec![10.0, 0.0], 3),
+            (2, vec![9.8, 0.3], 2),
+            (3, vec![9.5, 0.6], 1),
+            (4, vec![9.2, 0.9], 0),
+            (5, vec![8.9, 1.2], 0),
+
+            // 弱桥
+            (6, vec![6.0, 4.0], 1),
+            (7, vec![5.0, 5.0], 0),
+
+            // 右团（正确团）
+            (8, vec![1.2, 8.8], 0),
+            (9, vec![0.9, 9.1], 1),
+            (10, vec![0.6, 9.4], 2),
+            (11, vec![0.3, 9.7], 2),
+            (12, vec![0.0, 10.0], 3),
+        ],
+        query: vec![0.2, 9.8],
+        entry_id: Some(1),
+        expected_result_id: Some(12),
+        level: 0,
+        k: 3,
+        ef_search: 4,
+    }
+}
+
+// 2. 近邻拥挤 case
+// 这个不是桥接题，是排名极近题。
+// 适合看 exact_hit 会不会先掉。
+// 这题想测什么
+// top1 也许还能对
+// 但 k=5 的 exact ranking 很容易开始抖
+// 比较适合看 ef_search 从 4 到 8 有没有改善
+pub fn crowded_near_neighbors_case() -> HnswTestCase {
+    HnswTestCase {
+        nodes_data: vec![
+            (1, vec![5.00, 5.00], 2),
+            (2, vec![5.05, 4.95], 1),
+            (3, vec![4.95, 5.05], 1),
+            (4, vec![5.10, 4.90], 0),
+            (5, vec![4.90, 5.10], 0),
+            (6, vec![5.15, 4.85], 0),
+            (7, vec![4.85, 5.15], 0),
+
+            // 一些干扰点
+            (8, vec![7.0, 3.0], 1),
+            (9, vec![3.0, 7.0], 1),
+            (10, vec![8.0, 2.0], 0),
+            (11, vec![2.0, 8.0], 0),
+        ],
+        query: vec![5.02, 4.98],
+        entry_id: Some(10),
+        expected_result_id: Some(2),
+        level: 0,
+        k: 5,
+        ef_search: 4,
+    }
+}
+
+// 3. 单桥长链 case
+// 这个会更像“先被错误方向拖着走”。
+// 这题想测什么
+// 坏入口 + 单桥
+// 如果图连得不够好，可能一直在左边链条里晃
+// 比双团更“线性误导”
+pub fn single_bridge_chain_case() -> HnswTestCase {
+    HnswTestCase {
+        nodes_data: vec![
+            // 左侧长链（错误方向）
+            (1, vec![10.0, 0.0], 3),
+            (2, vec![9.0, 1.0], 2),
+            (3, vec![8.0, 2.0], 1),
+            (4, vec![7.0, 3.0], 0),
+
+            // 唯一桥点
+            (5, vec![5.0, 5.0], 1),
+
+            // 右侧长链（正确方向）
+            (6, vec![3.0, 7.0], 0),
+            (7, vec![2.0, 8.0], 1),
+            (8, vec![1.0, 9.0], 2),
+            (9, vec![0.0, 10.0], 3),
+        ],
+        query: vec![0.1, 9.9],
+        entry_id: Some(1),
+        expected_result_id: Some(9),
+        level: 0,
+        k: 3,
+        ef_search: 4,
+    }
+}
+
+// 4. 大一点的稀疏高维桥接 case
+// 这个适合看高维下的表现，别总是 2D。
+pub fn highdim_bridge_case() -> HnswTestCase {
+    HnswTestCase {
+        nodes_data: vec![
+            // 左团
+            (1, vec![10.0, 0.0, 0.0, 0.0, 0.0, 0.0], 3),
+            (2, vec![9.5, 0.5, 0.0, 0.0, 0.0, 0.0], 2),
+            (3, vec![9.0, 1.0, 0.0, 0.0, 0.0, 0.0], 1),
+
+            // 桥
+            (4, vec![5.0, 5.0, 0.0, 0.0, 0.0, 0.0], 1),
+            (5, vec![4.0, 6.0, 0.0, 0.0, 0.0, 0.0], 0),
+
+            // 右团
+            (6, vec![1.0, 9.0, 0.0, 0.0, 0.0, 0.0], 0),
+            (7, vec![0.5, 9.5, 0.0, 0.0, 0.0, 0.0], 1),
+            (8, vec![0.0, 10.0, 0.0, 0.0, 0.0, 0.0], 3),
+
+            // 干扰维度点
+            (9, vec![0.0, 0.0, 10.0, 0.0, 0.0, 0.0], 1),
+            (10, vec![0.0, 0.0, 0.0, 10.0, 0.0, 0.0], 1),
+            (11, vec![0.0, 0.0, 0.0, 0.0, 10.0, 0.0], 0),
+            (12, vec![0.0, 0.0, 0.0, 0.0, 0.0, 10.0], 0),
+        ],
+        query: vec![0.1, 9.9, 0.0, 0.0, 0.0, 0.0],
+        entry_id: Some(1),
+        expected_result_id: Some(8),
+        level: 0,
+        k: 4,
         ef_search: 4,
     }
 }
