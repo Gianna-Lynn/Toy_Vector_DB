@@ -1,4 +1,6 @@
 mod datasets;
+use std::hash::Hash;
+
 use datasets::*;
 
 use toy_vector_db::{
@@ -129,10 +131,24 @@ fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
         // bridge_trap_case,
 
         // =============== 第三轮添加的case ===============
-        weak_bridge_two_clusters_case,
-        crowded_near_neighbors_case,
-        single_bridge_chain_case,
-        highdim_bridge_case,
+        // weak_bridge_two_clusters_case,
+        // crowded_near_neighbors_case,
+        // single_bridge_chain_case,
+        // highdim_bridge_case,
+        // 当前 harder cases 下，ef_search=4 不足以稳定返回完整 top-k
+        // ef_search=8 可恢复正确结果
+        // ef_search=16 暂未表现出明显高于 8 的收益
+        // 当前样例下，m=2 与 m=4 尚未表现出显著差异
+
+        // =============== 第四轮：中等规模数据集（Agent生成）===============
+        // 目的：逼出 m 参数的信号差异
+        // 特点：50-100个点，结构可解释，m=2 vs m=4/8 应有明显差异
+        sparse_four_clusters_case,
+        dense_single_cluster_case,
+        pyramid_hierarchy_case,
+        layered_strips_case,
+        radial_star_case,
+        
     )
 }
 
@@ -193,7 +209,7 @@ fn experiment_param_sweep(){
                 // debug: 这个地方的expected_list最好完全独立于build_index_v1.
                 // let expected_list = ideal_answer_generator(&index, &case.query, case.k);
                 let search_result_list = index.search_knn_v1_from_entry_for_experiment(case.entry_id, &case.query,  case.k, ef_search);
-            
+                let search_result_list_len = search_result_list.len();
                 // 3
                 // 定义两个判断：
                 let mut top1_ok: bool = false;    //这个 case 的第一个结果是否命中
@@ -225,10 +241,21 @@ fn experiment_param_sweep(){
                     exact_hit += 1;
                 }
 
+
+                // improve: 添加一个新的试验指标 recall@k = 预测结果中与理想top-k重叠的数量 / k
+                use std::collections::HashSet;
+                let expected_set: HashSet<Id> = expected_list.iter().cloned().collect();
+                let overlap_count = search_result_list.iter()
+                    .filter(|id| expected_set.contains(id))
+                    .count();
+                // .iter() 是对列表的迭代器，.filter() 是过滤器，保留那些在 expected_set 中的 id，最后 .count() 计算重叠的数量。
+                
+                let recall_at_k_score = overlap_count as f32 / case.k as f32;
+
                 // 5
                 // 打印：case 名字, top1 是否对,exact 是否对, expected 什么, got 什么
                 println!("  [{}]", case_name);
-                println!("    top1_ok={}, exact_ok={}", top1_ok, exact_ok);
+                println!("    top1_ok={}, exact_ok={}, search_result_list_len={},  recall@{}={}", top1_ok, exact_ok, search_result_list_len, case.k, recall_at_k_score);
                 println!("    expected={:?}", expected_list);
                 println!("    got={:?}", search_result_list);
                 

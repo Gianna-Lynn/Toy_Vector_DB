@@ -591,3 +591,213 @@ pub fn highdim_bridge_case() -> HnswTestCase {
         ef_search: 4,
     }
 }
+
+// ================================================================
+// 第二阶段：中等规模 Synthetic 数据集（Agent 生成）
+// 目的：让 m 参数的影响显现
+// 特点：点数从 50-150 个，结构可解释，m=2 vs m=4/8 有明显差异
+// ================================================================
+
+/// 稀疏多团案例（~50个点）
+/// 结构：4个独立的紧团，团之间距离远，m 小时无法跨团
+/// 预期行为：m=2 时找到的邻居都在同一团内；m=4+ 时能跨团
+pub fn sparse_four_clusters_case() -> HnswTestCase {
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+    
+    // 团1：(10, 0) 中心附近 - 12个点
+    for i in 0..12 {
+        let angle = i as f32 * std::f32::consts::PI / 6.0;
+        let x = 10.0 + 0.5 * angle.cos();
+        let y = 0.5 * angle.sin();
+        nodes.push((id_counter, vec![x, y], 2));
+        id_counter += 1;
+    }
+    
+    // 团2：(0, 10) 中心附近 - 12个点
+    for i in 0..12 {
+        let angle = i as f32 * std::f32::consts::PI / 6.0;
+        let x = 0.5 * angle.cos();
+        let y = 10.0 + 0.5 * angle.sin();
+        nodes.push((id_counter, vec![x, y], 2));
+        id_counter += 1;
+    }
+    
+    // 团3：(-10, 0) 中心附近 - 12个点
+    for i in 0..12 {
+        let angle = i as f32 * std::f32::consts::PI / 6.0;
+        let x = -10.0 + 0.5 * angle.cos();
+        let y = 0.5 * angle.sin();
+        nodes.push((id_counter, vec![x, y], 2));
+        id_counter += 1;
+    }
+    
+    // 团4：(0, -10) 中心附近 - 12个点
+    for i in 0..12 {
+        let angle = i as f32 * std::f32::consts::PI / 6.0;
+        let x = 0.5 * angle.cos();
+        let y = -10.0 + 0.5 * angle.sin();
+        nodes.push((id_counter, vec![x, y], 2));
+        id_counter += 1;
+    }
+    
+    HnswTestCase {
+        nodes_data: nodes,
+        query: vec![10.3, 0.2],  // 查询在团1内
+        entry_id: Some(1),
+        expected_result_id: Some(1),
+        level: 0,
+        k: 8,
+        ef_search: 8,
+    }
+}
+
+/// 高密度单团案例（~80个点）
+/// 结构：单个大团，点极其密集，m 小时容易陷入局部最优
+/// 预期行为：m=2 时排名抖动；m=4+ 时更稳定
+pub fn dense_single_cluster_case() -> HnswTestCase {
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+    
+    // 中心在 (5, 5)，半径 2 内均匀分布 ~80 个点
+    let radius = 2.0;
+    let center_x = 5.0;
+    let center_y = 5.0;
+    
+    for i in 0..80 {
+        let angle = (i as f32) * 2.0 * std::f32::consts::PI / 80.0;
+        let r = (i as f32 / 80.0) * radius;
+        let x = center_x + r * angle.cos();
+        let y = center_y + r * angle.sin();
+        let level = if i < 10 { 2 } else if i < 30 { 1 } else { 0 };
+        nodes.push((id_counter, vec![x, y], level));
+        id_counter += 1;
+    }
+    
+    HnswTestCase {
+        nodes_data: nodes,
+        query: vec![5.05, 5.05],  // 查询在中心附近
+        entry_id: Some(1),
+        expected_result_id: Some(1),
+        level: 0,
+        k: 10,
+        ef_search: 8,
+    }
+}
+
+/// 金字塔型分层案例（~100个点）
+/// 结构：4层，每层密度递减，m 小时易被下层点吸引
+/// 预期行为：m=2 时可能漏掉上层点；m=4+ 时能正确维护跨层连接
+pub fn pyramid_hierarchy_case() -> HnswTestCase {
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+    
+    // 第0层（底部）：稀疏，8个点，离中心远
+    for i in 0..8 {
+        let angle = i as f32 * std::f32::consts::PI / 4.0;
+        nodes.push((id_counter, vec![15.0 * angle.cos(), 15.0 * angle.sin()], 0));
+        id_counter += 1;
+    }
+    
+    // 第1层：16个点，距离适中
+    for i in 0..16 {
+        let angle = i as f32 * std::f32::consts::PI / 8.0;
+        nodes.push((id_counter, vec![10.0 * angle.cos(), 10.0 * angle.sin()], 1));
+        id_counter += 1;
+    }
+    
+    // 第2层：32个点，靠近中心
+    for i in 0..32 {
+        let angle = i as f32 * std::f32::consts::PI / 16.0;
+        nodes.push((id_counter, vec![5.0 * angle.cos(), 5.0 * angle.sin()], 1));
+        id_counter += 1;
+    }
+    
+    // 第3层（中心）：44个点，极其紧密
+    for i in 0..44 {
+        let angle = i as f32 * std::f32::consts::PI / 22.0;
+        let r = (i as f32 / 44.0) * 1.0;
+        nodes.push((id_counter, vec![r * angle.cos(), r * angle.sin()], 2));
+        id_counter += 1;
+    }
+    
+    HnswTestCase {
+        nodes_data: nodes,
+        query: vec![0.1, 0.1],  // 查询在最中心
+        entry_id: Some(1),      // 从底层开始查询
+        expected_result_id: None,
+        level: 0,
+        k: 12,
+        ef_search: 8,
+    }
+}
+
+/// 水平片状分布案例（~90个点）
+/// 结构：5条平行的密集"线条"，m 小时无法跨线切换
+/// 预期行为：m=2 时被困在一条线上；m=4+ 时能跨线切换
+pub fn layered_strips_case() -> HnswTestCase {
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+    
+    // 5条平行线，每条 18 个点
+    for strip_idx in 0..5 {
+        let y = (strip_idx as f32 - 2.0) * 4.0;  // y: -8, -4, 0, 4, 8
+        
+        for i in 0..18 {
+            let x = (i as f32 - 8.5) * 1.0;
+            let level = if i == 9 { 2 } else if i >= 4 && i <= 14 { 1 } else { 0 };
+            nodes.push((id_counter, vec![x, y], level));
+            id_counter += 1;
+        }
+    }
+    
+    HnswTestCase {
+        nodes_data: nodes,
+        query: vec![0.0, 0.1],  // 查询在中间线条
+        entry_id: Some(10),     // 从底层开始
+        expected_result_id: None,
+        level: 0,
+        k: 10,
+        ef_search: 8,
+    }
+}
+
+/// 放射状星形案例（~72个点）
+/// 结构：中心 1 个点，周围 8 条射线，每条 8 个点
+/// 预期行为：m 小时只能沿射线走；m 大时能在射线间切换
+pub fn radial_star_case() -> HnswTestCase {
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+    
+    // 中心点
+    nodes.push((id_counter, vec![0.0, 0.0], 3));
+    id_counter += 1;
+    
+    // 8条射线，每条 8 个点
+    for ray_idx in 0..8 {
+        let angle = ray_idx as f32 * std::f32::consts::PI / 4.0;
+        
+        for dist_idx in 1..=8 {
+            let r = dist_idx as f32 * 1.5;
+            let x = r * angle.cos();
+            let y = r * angle.sin();
+            let level = if dist_idx <= 2 { 2 } else if dist_idx <= 5 { 1 } else { 0 };
+            nodes.push((id_counter, vec![x, y], level));
+            id_counter += 1;
+        }
+    }
+    
+    HnswTestCase {
+        nodes_data: nodes,
+        query: vec![1.5, 1.5],  // 查询在左下射线附近
+        entry_id: Some(1),      // 从中心开始
+        expected_result_id: None,
+        level: 0,
+        k: 8,
+        ef_search: 8,
+    }
+}
+
+// ================================================================
+// 第二阶段结束
+// ================================================================
