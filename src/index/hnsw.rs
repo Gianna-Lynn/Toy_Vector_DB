@@ -52,8 +52,27 @@ impl HnswNode {
         }
     }
 
+    pub fn delete_neighbor_single_direction_at_all_levels(&mut self, neighbor_id: Id){
+        // pub struct HnswNode {
+        //     id: Id,
+        //     //data: Vec<Record>, //不能这么写.一个HNSW节点只对应一条向量记录,也就是一个Record, 不要再建立一个Vec<Record>
+        //     data: Vector,
+        //     //level: u64,
+        //     node_max_level: usize, // level表示该节点可到达的最高层编号.例如,如果level=3, 则该节点在0,1,2,3层都有邻居.如果level=0, 则该节点只有在第0层有邻居.
+        //     //neighbors: Vec<Id> // 不能这么写,因为HNSW是分层图.
+        //     neighbors: Vec<Vec<Id>>, //neighbors[i]：第 i 层的邻居
+        // }
+        for i in 0..=self.node_max_level{
+            // find neighbor_id in neighbors[i] and delete it
+            // 单方面剪枝.
+            self.neighbors[i].retain(|&id| id != neighbor_id);
+            // retain()保留id不等于neighbor_id的元素.
+        }
+    }
 
-
+    pub fn delete_neighbor_single_direction_at_level(&mut self, neighbor_id: Id, level: usize){
+        self.neighbors[level].retain(|&id| id != neighbor_id);
+    }
 
     pub fn get_id(&self) -> &Id {
         &self.id
@@ -644,7 +663,7 @@ impl HnswIndex {
 // # 禁用剪枝逻辑（默认，代码被完全跳过）
 // cargo test
 
-            #[cfg(feature = "pruning")]
+            //#[cfg(feature = "pruning")]
             /************************************** 下面的line 12-16处理的都是剪枝逻辑,为方便理解可整块跳过 **************************************************/
             /**************************************** line 12 对刚刚连上的每个老邻居 e 逐个检查 **************************************************/
             // 对于每一个被选为邻居的节点e, 如果它的邻居数超过了m_max, 就需要进行邻居选择和替换. 
@@ -696,7 +715,28 @@ impl HnswIndex {
                 
                     //e_node.neighbors[current_lvl] = e_new_conn_set.iter().copied().collect();
                     // 改进: 利用vec直接赋值
+                    // e_node.neighbors[current_lvl] = e_new_conn_vec;
+
+                    // e_new_conn_vec 是新的邻居列表
+                    // e_node.neighbors[current_lvl] 是旧的邻居列表
+                    // 我们过去的做法是直接用新的覆盖旧的, 但是这样会导致单方面的修改.
+                    // 那么如果要改成利用函数pub fn delete_neighbor_relationship(&mut self, node1_id: Id, node2_id:Id){进行双向删除, 要怎么做?
+                    // 怎样才能知道哪些元素在旧的邻居列表当中包含, 但是不在新的邻居列表中包含?
+                    // 答案: 用集合差集找出需要删除的元素
+                    let old_neighbors = e_node.neighbors[current_lvl].clone();
+                    let old_set: HashSet<Id> = old_neighbors.iter().cloned().collect();
+                    let new_set: HashSet<Id> = e_new_conn_vec.iter().cloned().collect();
+                    // 计算差集
+                    let to_delete: HashSet<Id> = old_set.difference(&new_set).cloned().collect();
+                    // 不清楚这里.cloned().collect();的用法目标是什么
+
+                    // 更新e_node的邻居表.
                     e_node.neighbors[current_lvl] = e_new_conn_vec;
+
+                    // 对于每个被删除的邻居, 进行双向删除
+                    for neighbor_to_delete_id in to_delete{
+                        self.delete_neighbor_relationship_at_level(*e_id, neighbor_to_delete_id, current_lvl);
+                    }
 
                     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     //TODO: 这里的更新只是单方面的, 也就是说我们更新了e_node的邻居表, 但是并没有更新那些被删掉的邻居节点的邻居表.
@@ -768,21 +808,33 @@ impl HnswIndex {
                 self.add_neighbor_to_node_at_level(id, *neighbor_node_id, current_lvl);
                 self.add_neighbor_to_node_at_level(*neighbor_node_id, id, current_lvl);
             }
-            #[cfg(feature = "pruning")]
-            for e_id in neighbors_set {
+            for e_id in neighbors_set{
                 let e_conn_set: HashSet<u64> = {
-                    let e_node = self.get_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
-                    e_node.get_neighbors()[current_lvl].iter().copied().collect()
+                    let e_node = self.get_node_by_id(*e_id)
+                        .expect("in insert_v1, get_node_by_id cannot handle e_id");
+                    e_node.get_neighbors()[current_lvl]
+                        .iter()
+                        .copied()
+                        .collect()
                 };
                 if e_conn_set.len() > m_max {
                     let e_new_conn_vec: Vec<u64> = {
-                        let e_node = self.get_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
-                        self.select_neighbors_simple(&e_conn_set, e_node.get_data(), m_max)
+                        let e_node = self.get_node_by_id(*e_id)
+                            .expect("in insert_v1, get_node_by_id cannot handle e_id");
+                        self.select_neighbors_simple(&e_conn_set,e_node.get_data(), m_max)
                     };
-                    let e_node = self.get_mut_node_by_id(*e_id).expect("in insert_v1, get_node_by_id cannot handle e_id");
+                    let e_node = self.get_mut_node_by_id(*e_id)
+                        .expect("in insert_v1, get_node_by_id cannot handle e_id");
+                    let old_neighbors = e_node.neighbors[current_lvl].clone();
+                    let old_set: HashSet<Id> = old_neighbors.iter().cloned().collect();
+                    let new_set: HashSet<Id> = e_new_conn_vec.iter().cloned().collect();
+                    let to_delete: HashSet<Id> = old_set.difference(&new_set).cloned().collect();
                     e_node.neighbors[current_lvl] = e_new_conn_vec;
+                    for neighbor_to_delete_id in to_delete{
+                        self.delete_neighbor_relationship_at_level(*e_id, neighbor_to_delete_id, current_lvl);
+                    }
                 }
-            }
+            }//endfor
             entry_point_id = self.get_nearest(&w_set, &data).expect("searchh_result_id赋值错误");
         }
         if new_node_level > self.index_max_level {
@@ -836,4 +888,30 @@ impl HnswIndex {
         // return candidate_sequence;
 
     }
+ 
+    pub fn delete_neighbor_relationship_at_all_levels(&mut self, node1_id: Id, node2_id:Id){
+        let node1 = self.get_mut_node_by_id(node1_id).expect("In function delete_neighbor_relationship, get_mut_node_by_id got None");
+        
+        node1.delete_neighbor_single_direction_at_all_levels(node2_id);
+        
+        let node2 = self.get_mut_node_by_id(node2_id).expect("In function delete_neighbor_relationship, get_mut_node_by_id got None");
+        // 为了符合rust的所有权要求, 中间两句话不能调换.
+
+        node2.delete_neighbor_single_direction_at_all_levels(node1_id);
+    }
+
+    pub fn delete_neighbor_relationship_at_level(&mut self, node1_id: Id, node2_id:Id, level: usize){
+        let node1 = self.get_mut_node_by_id(node1_id).expect("In function delete_neighbor_relationship, get_mut_node_by_id got None");
+        
+        node1.delete_neighbor_single_direction_at_level(node2_id, level);
+        
+        let node2 = self.get_mut_node_by_id(node2_id).expect("In function delete_neighbor_relationship, get_mut_node_by_id got None");
+        // 为了符合rust的所有权要求, 中间两句话不能调换.
+
+        node2.delete_neighbor_single_direction_at_level(node1_id, level);
+    }
+
+
+
 }
+

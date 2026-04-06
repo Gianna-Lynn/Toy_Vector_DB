@@ -801,3 +801,94 @@ pub fn radial_star_case() -> HnswTestCase {
 // ================================================================
 // 第二阶段结束
 // ================================================================
+
+
+// 团 A → 桥 1 → 团 B → 桥 2 → 团 C
+// A 是起点附近的错误大团
+// C 是 query 所在的正确大团
+// B 是中间过渡团
+// 两个桥都很关键
+// 只要有一处桥不够牢，搜索就容易被困在前面 
+pub fn multi_cluster_chain_case() ->HnswTestCase{
+    let mut nodes = vec![];
+    let mut id_counter = 1u64;
+
+    let a_x = 0;
+    let a_y = 0;
+   
+    // 团A: 16个点, 中心(0,0)
+    for i in 0..16{
+        let angle = i as f32 * std::f32::consts::PI / 8.0;
+        let lvl = if i == 0 {
+            3
+        } else if (1..=4).contains(&i) {
+            2
+        } else if (5..=9).contains(&i) {
+            1
+        } else {
+            0
+        };
+        let r = if i <= 7 { 0.8 } else { 1.3 };
+        nodes.push((id_counter, vec![a_x as f32 + r * angle.cos(), a_y as f32 + r * angle.sin()], lvl));
+        id_counter += 1;
+    }
+
+
+    let b_x = 12;
+    let b_y = 0;
+    // 团B: 16个点, 中心(12,0)
+    for i in 0..7{
+        let angle = i as f32 * std::f32::consts::PI / 4.0;
+        let lvl = if i == 0 {
+            3
+        } else if (1..=4).contains(&i) {
+            2
+        } else if (5..=9).contains(&i) {
+            1
+        } else {
+            0
+        };
+        let r = if i <= 7 { 0.8 } else { 1.3 };
+        nodes.push((id_counter, vec![b_x as f32 + r * angle.cos(), b_y as f32 + r * angle.sin()], lvl));
+        id_counter += 1;
+    }
+
+    let c_x =24;
+    let c_y =0;
+    // 团C: 16个点, 中心(24,0)
+    for i in 0..16{
+        let angle = i as f32 * std::f32::consts::PI / 8.0;
+        let lvl = if i == 0 {
+            3
+        } else if (1..=4).contains(&i) {
+            2
+        } else if (5..=9).contains(&i) {
+            1
+        } else {
+            0
+        };
+        let r = if i <= 7 { 0.8 } else { 1.3 };
+        nodes.push((id_counter, vec![c_x as f32 + r * angle.cos(), c_y as f32 + r * angle.sin()], lvl));
+        id_counter += 1;
+    }
+    
+    //桥1
+    nodes.push((id_counter, vec![6.0, 0.2] ,0));
+    id_counter += 1;
+    // nodes.push((id_counter, vec![6.0, -0.2] ,1));
+    // id_counter += 1;
+    //桥2
+    nodes.push((id_counter, vec![18.0, 0.2] ,0));
+    // nodes.push((id_counter, vec![18.0, -0.2] ,1));
+    // id_counter += 1;
+
+    HnswTestCase{
+        nodes_data: nodes,
+        query: vec![24.8, 0.1], //更偏向于C团
+        entry_id : Some(1),
+        expected_result_id : None,
+        level: 0,
+        k: 8,
+        ef_search: 16
+    }
+}

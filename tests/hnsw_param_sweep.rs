@@ -135,6 +135,7 @@ fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
         // crowded_near_neighbors_case,
         // single_bridge_chain_case,
         // highdim_bridge_case,
+        // 第三轮的结论: 
         // 当前 harder cases 下，ef_search=4 不足以稳定返回完整 top-k
         // ef_search=8 可恢复正确结果
         // ef_search=16 暂未表现出明显高于 8 的收益
@@ -143,12 +144,15 @@ fn selected_cases() -> (Vec<datasets::HnswTestCase>, Vec<String>){
         // =============== 第四轮：中等规模数据集（Agent生成）===============
         // 目的：逼出 m 参数的信号差异
         // 特点：50-100个点，结构可解释，m=2 vs m=4/8 应有明显差异
-        sparse_four_clusters_case,
-        dense_single_cluster_case,
-        pyramid_hierarchy_case,
-        layered_strips_case,
-        radial_star_case,
-        
+        // sparse_four_clusters_case,
+        // dense_single_cluster_case,
+        // pyramid_hierarchy_case,
+        // layered_strips_case,
+        // radial_star_case,
+
+        // =============== 第五轮：多团串联模板（手搓）===============
+        // 目的：逼出 m 参数的信号差异
+        multi_cluster_chain_case,
     )
 }
 
@@ -157,7 +161,8 @@ fn experiment_param_sweep(){
     // 固定一些参数
     let ef_construction = 10;
     let ms = [2, 4];
-    let ef_searches = [4, 8, 16];
+    // let ef_searches = [4, 8, 16];
+    let ef_searches = [16];
 
     // 然后两层循环：
     // 外层扫 m
